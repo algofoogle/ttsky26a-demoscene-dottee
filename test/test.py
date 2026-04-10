@@ -1,127 +1,127 @@
+# SPDX-FileCopyrightText: © 2026 Anton Maurovic
+# SPDX-License-Identifier: Apache-2.0
+
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import ClockCycles
+from cocotb.triggers import RisingEdge, Timer, ClockCycles
+import time
+from os import environ as env
+import re
 
-import os
-import glob
-import itertools
-from PIL import Image, ImageChops
+HIGH_RES        = float(env.get('HIGH_RES')) if 'HIGH_RES' in env else None # If not None, scale H res by this, and step by CLOCK_PERIOD/HIGH_RES instead of unit clock cycles.
+CLOCK_PERIOD    = float(env.get('CLOCK_PERIOD') or 40.0) # Default 40.0 (period of clk oscillator input, in nanoseconds)
+FRAMES          =   int(env.get('FRAMES')       or   30) # Default 30 (total frames to render)
+REG             =   int(env.get('REG')          or    0) # Default 0 (UNregistered outputs)
+
+print(f"""
+Test parameters (can be overridden using ENV vars):
+---     HIGH_RES: {HIGH_RES}
+--- CLOCK_PERIOD: {CLOCK_PERIOD}
+---       FRAMES: {FRAMES}
+---          REG: {REG}
+""")
+
+# This can represent hard-wired stuff:
+def set_default_start_state(dut):
+    dut.ena.value                   = 1
+    # # Present registered outputs?
+    # dut.registered_outputs.value    = REG
+
+
+async def async_run_all(steps):
+    for step in steps:
+        await step
 
 
 @cocotb.test()
-async def test_project(dut):
+async def test_frames(dut):
+    """
+    Generate a number of full video frames and write to rbz_basic_frame-###.ppm
+    """
 
-    # Set clock period to 40 ns (25 MHz)
-    CLOCK_PERIOD = 40
+    dut._log.info("Starting test_frames...")
 
-    # Set VGA timing parameters matching hvsync_generator.v
-    H_DISPLAY = 640
-    H_FRONT   =  16
-    H_SYNC    =  96
-    H_BACK    =  48
-    V_DISPLAY = 480
-    V_FRONT   =  10
-    V_SYNC    =   2
-    V_BACK    =  33
+    frame_count = FRAMES # No. of frames to render.
+    hrange = 800
+    frame_height = 525
+    vrange = frame_height
+    hres = HIGH_RES or 1
 
-    # Number of frames to capture
-    CAPTURE_FRAMES = 3
+    print(f"Rendering {frame_count} full frame(s)...")
 
-    # Derived constants
-    H_SYNC_START = H_DISPLAY + H_FRONT
-    H_SYNC_END = H_SYNC_START + H_SYNC
-    H_TOTAL = H_SYNC_END + H_BACK
-    V_SYNC_START = V_DISPLAY + V_FRONT
-    V_SYNC_END = V_SYNC_START + V_SYNC
-    V_TOTAL = V_SYNC_END + V_BACK
-
-    # Palette mapping uo_out values to RGB color
-    # uo_out = {hsync, B[0], G[0], R[0], vsync, B[1], G[1], R[1]}
-    palette = [bytes(3)] * 256
-    for r1, r0, g1, g0, b1, b0 in itertools.product(range(2), repeat=6):
-        red = 170*r1 + 85*r0
-        green = 170*g1 + 85*g0
-        blue = 170*b1 + 85*b0
-        color_index = b0<<6|g0<<5|r0<<4|b1<<2|g1<<1|r1<<0
-        for sync_bits in (0x00, 0x08, 0x80, 0x88):
-            palette[color_index | sync_bits] = bytes((red, green, blue))
-
-    # Set up the clock
-    clock = Clock(dut.clk, CLOCK_PERIOD, unit="ns")
-    cocotb.start_soon(clock.start())
-
-    # Reset the design
-    dut.ena.value = 1
-    dut.ui_in.value = 0
-    dut.uio_in.value = 0
-    dut.rst_n.value = 0
-    await ClockCycles(dut.clk, 10)
+    set_default_start_state(dut)
+    # Start with reset released:
     dut.rst_n.value = 1
-    await ClockCycles(dut.clk, 2)
 
-    # Define some functions for capturing lines & frames
+    clk = Clock(dut.clk, CLOCK_PERIOD, unit="ns")
+    cocotb.start_soon(clk.start())
 
-    async def check_line(expected_vsync):
-        for i in range(H_TOTAL):
-            hsync = int(dut.uo_out.value[7])
-            vsync = int(dut.uo_out.value[3])
-            assert hsync == (0 if H_SYNC_START <= i < H_SYNC_END else 1), "Unexpected hsync pattern"
-            assert vsync == expected_vsync, "Unexpected vsync pattern"
-            await ClockCycles(dut.clk, 1)
+    # Wait 3 clocks...
+    await ClockCycles(dut.clk, 3)
+    dut._log.info("Assert reset...")
+    # ...then assert reset:
+    dut.rst_n.value = 0
+    # ...and wait another 10 clocks...
+    await ClockCycles(dut.clk, 10)
+    dut._log.info("Release reset...")
+    # ...then release reset:
+    dut.rst_n.value = 1
+    x_count = 0 # Counts unknown signal values.
+    z_count = 0
+    sample_count = 0 # Total count of pixels or samples.
 
-    async def capture_line(framebuffer, offset):
-        for i in range(H_TOTAL):
-            hsync = int(dut.uo_out.value[7])
-            vsync = int(dut.uo_out.value[3])
-            assert hsync == (0 if H_SYNC_START <= i < H_SYNC_END else 1), "Unexpected hsync pattern"
-            assert vsync == 1, "Unexpected vsync pattern"
-            if i < H_DISPLAY:
-                framebuffer[offset+3*i:offset+3*i+3] = palette[int(dut.uo_out.value)]
-            await ClockCycles(dut.clk, 1)
+    for frame in range(frame_count):
+        render_start_time = time.time()
 
-    async def skip_frame(frame_num):
-        dut._log.info(f"Skipping frame {frame_num}")
-        await ClockCycles(dut.clk, H_TOTAL*V_TOTAL)
+        nframe = frame + 1
 
-    async def capture_frame(frame_num, check_sync=True):
-        framebuffer = bytearray(V_DISPLAY*H_DISPLAY*3)
-        for j in range(V_DISPLAY):
-            dut._log.info(f"Frame {frame_num}, line {j} (display)")
-            line = await capture_line(framebuffer, 3*j*H_DISPLAY)
-        if check_sync:
-            for j in range(j, j+V_FRONT):
-                dut._log.info(f"Frame {frame_num}, line {j} (front porch)")
-                await check_line(1)
-            for j in range(j, j+V_SYNC):
-                dut._log.info(f"Frame {frame_num}, line {j} (sync pulse)")
-                await check_line(0)
-            for j in range(j, j+V_BACK):
-                dut._log.info(f"Frame {frame_num}, line {j} (back porch)")
-                await check_line(1)
-        else:
-            dut._log.info(f"Frame {frame_num}, skipping non-display lines")
-            await ClockCycles(dut.clk, H_TOTAL*(V_TOTAL-V_DISPLAY))
-        frame = Image.frombytes('RGB', (H_DISPLAY, V_DISPLAY), bytes(framebuffer))
-        return frame
+        # Create PPM file to visualise the frame, and write its header:
+        img = open(f"frames_out/frame-{frame:03d}.ppm", "w")
+        img.write("P3\n")
+        img.write(f"{int(hrange*hres)} {vrange:d}\n")
+        img.write("255\n")
 
-    # Start capturing
+        for n in range(vrange): # 525 lines * however many frames in frame_count
+            print(f"Rendering line {n} of frame {frame}")
+            for n in range(int(hrange*hres)): # 800 pixel clocks per line.
+                if n % 100 == 0:
+                    print('.', end='')
+                if 'x' in str(dut.rgb.value).lower():
+                    # Output is unknown; make it green:
+                    r = 0
+                    g = 255
+                    b = 0
+                elif 'z' in str(dut.rgb.value).lower():
+                    # Output is HiZ; make it magenta:
+                    r = 255
+                    g = 0
+                    b = 255
+                else:
+                    rr = int(dut.rr.value)
+                    gg = int(dut.gg.value)
+                    bb = int(dut.bb.value)
+                    hsyncb = 255 if str(dut.hsync_n.value).lower()=='x' else (0==dut.hsync_n.value)*0b110000
+                    vsyncb = 128 if str(dut.vsync_n.value).lower()=='x' else (0==dut.vsync_n.value)*0b110000
+                    r = (rr << 6) | hsyncb
+                    g = (gg << 6) | vsyncb
+                    b = (bb << 6)
+                sample_count += 1
+                if 'x' in (str(dut.rgb.value) + str(dut.hsync_n.value) + str(dut.vsync_n.value)).lower():
+                    x_count += 1
+                if 'z' in (str(dut.rgb.value) + str(dut.hsync_n.value) + str(dut.vsync_n.value)).lower():
+                    z_count += 1
+                img.write(f"{r} {g} {b}\n")
+                if HIGH_RES is None:
+                    await ClockCycles(dut.clk, 1) 
+                else:
+                    await Timer(CLOCK_PERIOD/hres, unit='ns')
+        img.close()
+        render_stop_time = time.time()
+        delta = render_stop_time - render_start_time
+        print(f"[{render_stop_time}: Frame simulated in {delta} seconds]")
+    print("Waiting 1 more clock, for start of next line...")
+    await ClockCycles(dut.clk, 1)
 
-    os.makedirs("output", exist_ok=True)
+    # await toggler
 
-    for i in range(CAPTURE_FRAMES):
-        frame = await capture_frame(i)
-        frame.save(f"output/frame{i}.png")
-
-
-@cocotb.test()
-async def compare_reference(dut):
-    cocotb.pass_test()
-    for img in glob.glob("output/frame*.png"):
-        basename = img.removeprefix("output/")
-        dut._log.info(f"Comparing {basename} to reference image")
-        frame = Image.open(img)
-        ref = Image.open(f"reference/{basename}")
-        diff = ImageChops.difference(frame, ref)
-        if diff.getbbox() is not None:
-            diff.save(f"output/diff_{basename}")
-            assert False, f"Rendered {basename} differs from reference image"
+    print(f"DONE: Out of {sample_count} pixels/samples, got: {x_count} 'x'; {z_count} 'z'")

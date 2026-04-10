@@ -1,6 +1,19 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
+
+// `define DUMP_VCD
+
+//   //NOTE: DON'T write VCD file, because it'd be huge!
+// `ifdef DUMP_VCD
+//   // Dump the signals to a VCD file. You can view it with gtkwave.
+//   initial begin
+//     $dumpfile("tb.fst");
+//     $dumpvars(0, tb);
+//     #1;
+//   end
+// `endif
+
 /* This testbench just instantiates the module and makes some convenient wires
    that can be driven / tested by the cocotb test.py.
 */
