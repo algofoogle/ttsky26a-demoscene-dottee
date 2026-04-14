@@ -17,4 +17,4 @@ Just hook up a VGA monitor, supply a 25MHz clock, and reset it.
 
 ## External hardware
 
-TinyVGA PMOD ought to be enough!
+TinyVGA PMOD ought to be enough! Hopefully I'll have audio going soon too on `uio` via the TT Audio PMOD.

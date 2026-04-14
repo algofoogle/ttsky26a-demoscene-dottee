@@ -40,7 +40,7 @@ module tb ();
   wire VGND = 1'b0;
 `endif
 
-  // Specific outputs for Jewel:
+  // Specific outputs for DOTTEE:
   // RrGgBb and H/Vsync pin ordering is per Tiny VGA PMOD
   // (https://tinytapeout.com/specs/pinouts/#vga-output)
   wire [1:0] rr = {uo_out[0],uo_out[4]};
@@ -51,8 +51,7 @@ module tb ();
   wire vsync_n    = uo_out[3];
 
 
-  // Replace tt_um_example with your module name:
-  tt_um_algofoogle_jewel user_project (
+  tt_um_algofoogle_dottee user_project (
 
       // Include power ports for the Gate Level test:
 `ifdef GL_TEST
