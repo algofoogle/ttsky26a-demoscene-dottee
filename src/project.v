@@ -30,8 +30,15 @@ module tt_um_algofoogle_dottee(
   // + (v>>5) // Minor shift makes it more interesting.
   wire [9:0] v;
 
-  // TinyVGA PMOD
-  assign uo_out = {hsync, B[0], G[0], R[0], vsync, B[1], G[1], R[1]};
+  // TinyVGA PMOD with registered outputs
+  reg [9:0] uo_out_reg;
+  always @(posedge clk) begin
+    if (~rst_n)
+      uo_out_reg <= 0;
+    else
+      uo_out_reg <= {hsync, B[0], G[0], R[0], vsync, B[1], G[1], R[1]};
+  end
+  assign uo_out = uo_out_reg;
 
   // TT Audio PMOD
   assign uio_out[7] = 0;//(&counter[0:0]) ? hit : (delta[7] ^ r[4]); // Weird motor sound: d[4] ^ r[1]; Also try d[9]
