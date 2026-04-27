@@ -123,7 +123,9 @@ module tt_um_algofoogle_dottee(
 
   wire [9:0] cho = h^64;
   wire [5:0] circle_scan = cho[6] ? cho[5:0] : ~cho[5:0];
-  wire in_circle = circle_valid && (circle_scan > circle_outer_edge) && (circle_scan <= circle_edge) && circle_bits[h[9:5]];
+  wire in_outer_circle = (circle_scan > circle_outer_edge);
+  wire in_inner_circle = (circle_scan > circle_edge);
+  wire in_circle = circle_valid && in_outer_circle && !in_inner_circle && circle_bits[h[9:5]];
   wire in_logo = (cvo[9:6] == 1 || cvo[9:6] == 2) && (h>32) && (h<640-32);
   wire logo_hit = in_logo && (
     in_circle ||
@@ -131,13 +133,21 @@ module tt_um_algofoogle_dottee(
     ((cvo<74 || cvo>182) && (h[9:5]==1)) ||
     (cvo>123 && cvo<133 && cho[9:7]>=3) ||
     (
-        (cvo>(64+27) && cvo<=(64+44) && h>268 && h<338) ||
-        (cvo>(64+58) && cvo<(64+76) && h>300 && h<362) ||
-        (cvo>(64+27) && cvo<=(64+92) && h>296 && h<316) ||
-        (cvo>(64+58) && cvo<=(64+120) && h>326 && h<346)
+        // "TT" inner:
+        //NOTE: Instead of constraining the rectangles' left/bottom, just clip with in_outer_circle.
+        //NOTE: We could get away with fudging 1 pixel to prefer even-numbered comparisons, if it saves 1 bit here and there.
+        (
+          (cvo>(64+27) && cvo<=(64+44) && h>268 && h<332) ||  // Upper bar.
+          (cvo>(64+58) && cvo<(64+76) && h>300 && h<361) ||   // Lower bar.
+          (cvo>(64+27) && cvo<=(64+87) && h>293 && h<313) ||  // Upper post.
+          (cvo>(64+58) && cvo<=(64+123) && h>323 && h<343)    // Lower post.
+        ) 
     )
+  ) && ~(
+      // Gaps in TT ring:
+      ( h>256 && h<276 && cvo>(64+44) && cvo<(64+52) ) ||
+      ( h>342 && h<349 && cvo>(64+100))
   );
-
   wire in_logo_stripe = (v>136) && (v<344);
 
   assign {R,G,B} =
