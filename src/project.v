@@ -64,17 +64,13 @@ module tt_um_algofoogle_dottee(
   // Also pretty (but currently for static BG, no motion):
   //assign rgb = ((((h-16)&9'b100000)^((v-16)&9'b100000))&&(h[6]^v[6])) ? rgb1 : rgb2;//rgb2<<(rgb1>>2); // Can make fish scales with dense half-circles.
 
-  wire ndy;
-  not_done_yet message(.hcount(h), .vcount(v), .pixel(ndy));
-  assign rgb = 
-    (v[8:7]==2'b01) ? {6{ndy}} :
-    rgb1 & ({6{(v[8:7]!=2'b01)& (h[2]^v[2])& (h[0]^v[0])}});
+  assign rgb = rgb1;
 
   reg [19:0] hlut;
 
   background_generator #(.DOTBITS(6)) bgen(
     .h(h),//-counter),
-    .v(v),
+    .v(v+counter),
     .counter(counter),
     .rgb(rgb1)
   );
@@ -86,16 +82,66 @@ module tt_um_algofoogle_dottee(
     .rgb(rgb2)
   );
 
-  assign R = video_active ? rgb[5:4] : 2'b00;
-  assign G = video_active ? rgb[3:2] : 2'b00;
-  assign B = video_active ? rgb[1:0] : 2'b00;
+  wire circle_done;
+  wire circle_valid;
+  wire [5:0] circle_edge;
+
+  wire circle_inner_start = h==10'd704;
+  wire circle_start = (h==10'd640 || circle_inner_start);
+  wire [5:0] circle_radius = (h >= 10'd704) ? 6'd53 : 6'd63; // Inner vs. outer radius.
+
+  reg [5:0] circle_outer_edge;
+
+  wire [9:0] cvo = v-112;
+
+  wire [19:0] circle_bits = 20'b01110111111111111100;
+
+  circle_edge slow_circle(
+    .clk(clk),
+    .reset(~rst_n),
+    .radius(circle_radius),
+    .vertical_line(cvo[6] ? cvo[5:0] : ~cvo[5:0]),
+    .start(circle_start),
+    .done(circle_done),
+    .valid(circle_valid),
+    .edge_point(circle_edge)
+  );
+
+  always @(posedge clk) begin
+    if (~rst_n)
+      circle_outer_edge <= 0;
+    else if (h==10'd700)
+      circle_outer_edge <= circle_edge;
+  end
+
+  wire [9:0] cho = h^64;
+  wire [5:0] circle_scan = cho[6] ? cho[5:0] : ~cho[5:0];
+  wire in_circle = circle_valid && (circle_scan > circle_outer_edge) && (circle_scan <= circle_edge) && circle_bits[h[9:5]];
+  wire in_logo = (cvo[9:6] == 1 || cvo[9:6] == 2) && (h>32) && (h<640-32);
+  wire logo_hit = in_logo && (
+    in_circle ||
+    h<42 ||
+    ((cvo<74 || cvo>182) && (h[9:5]==1)) ||
+    (cvo>123 && cvo<133 && cho[9:7]>=3) ||
+    (
+        (cvo>(64+27) && cvo<=(64+44) && h>268 && h<338) ||
+        (cvo>(64+58) && cvo<(64+76) && h>300 && h<362) ||
+        (cvo>(64+27) && cvo<=(64+92) && h>296 && h<316) ||
+        (cvo>(64+58) && cvo<=(64+120) && h>326 && h<346)
+    )
+  );
+
+  wire in_logo_stripe = (v>136) && (v<344);
+
+  assign {R,G,B} =
+    (!video_active) ? 6'b00_00_00 :
+    (logo_hit)      ? 6'b11_11_11 :
+    (in_logo_stripe & (h[0]^v[0])) ? 0 :
+                      rgb;
 
   // wire [9:0] dist2 = $signed(h[5:0]) * $signed(v[5:0]);
-
   // wire [9:0] comp = $signed(counter*counter)+v+h*v; //$signed(h[9:3]*h[9:3]+counter);
-
   // wire hit2 = dist2 < comp;
-
   // wire [5:0] dithery = (counter+{h[3:2],h[5:4],h[9:6]}) & {6{hit2}} & {6{video_active}};
 
   always @(posedge clk) begin
@@ -154,159 +200,5 @@ module background_generator #(
   assign rgb = 
     sheen ? white :
     hit ? (delta[9:6]+color) : altcolor;  //(dithery & 6'b01_01_01);
-
-endmodule
-
-
-module not_done_yet(
-  input [9:0] hcount,
-  input [9:0] vcount,
-  output pixel
-);
-
-    localparam H_VISIBLE = 640;
-    localparam V_VISIBLE = 480;
-
-    // ------------------------------------------------------------------------
-    // Text placement
-    // 12 chars total: "NOT DONE YET"
-    // 8x8 font, no scaling
-    // ------------------------------------------------------------------------
-    localparam CHAR_W   = 8;
-    localparam CHAR_H   = 8;
-    localparam MSG_LEN  = 12;
-    localparam TEXT_W   = MSG_LEN * CHAR_W;   // 96
-    localparam TEXT_H   = CHAR_H;             // 8
-
-    localparam TEXT_X0  = (H_VISIBLE - TEXT_W) / 2;  // 272
-    localparam TEXT_Y0  = 192;
-
-    wire in_text_box =
-        (hcount >= TEXT_X0) && (hcount < TEXT_X0 + TEXT_W) &&
-        (vcount >= TEXT_Y0) && (vcount < TEXT_Y0 + TEXT_H);
-
-    wire [3:0] char_index = (hcount - TEXT_X0) >> 3;  // divide by 8
-    wire [9:0] gx = (hcount - TEXT_X0);
-    wire [9:0] gy = (vcount - TEXT_Y0);
-    wire [2:0] glyph_x    = gx[2:0];
-    wire [2:0] glyph_y    = gy[2:0];
-
-
-    reg [7:0] char_code;
-    always @(*) begin
-        case (char_index)
-            4'd0:  char_code = "N";
-            4'd1:  char_code = "O";
-            4'd2:  char_code = "T";
-            4'd3:  char_code = " ";
-            4'd4:  char_code = "D";
-            4'd5:  char_code = "O";
-            4'd6:  char_code = "N";
-            4'd7:  char_code = "E";
-            4'd8:  char_code = " ";
-            4'd9:  char_code = "Y";
-            4'd10: char_code = "E";
-            4'd11: char_code = "T";
-            default: char_code = " ";
-        endcase
-    end
-
-    // ------------------------------------------------------------------------
-    // 8x8 glyph ROM for just the letters we need
-    // Each row is 8 bits, MSB is leftmost pixel
-    // ------------------------------------------------------------------------
-    reg [7:0] glyph_row;
-    always @(*) begin
-        case (char_code)
-
-            "N": begin
-                case (glyph_y)
-                    3'd0: glyph_row = 8'b11000011;
-                    3'd1: glyph_row = 8'b11100011;
-                    3'd2: glyph_row = 8'b11110011;
-                    3'd3: glyph_row = 8'b11011011;
-                    3'd4: glyph_row = 8'b11001111;
-                    3'd5: glyph_row = 8'b11000111;
-                    3'd6: glyph_row = 8'b11000011;
-                    3'd7: glyph_row = 8'b00000000;
-                endcase
-            end
-
-            "O": begin
-                case (glyph_y)
-                    3'd0: glyph_row = 8'b00111100;
-                    3'd1: glyph_row = 8'b01100110;
-                    3'd2: glyph_row = 8'b11000011;
-                    3'd3: glyph_row = 8'b11000011;
-                    3'd4: glyph_row = 8'b11000011;
-                    3'd5: glyph_row = 8'b01100110;
-                    3'd6: glyph_row = 8'b00111100;
-                    3'd7: glyph_row = 8'b00000000;
-                endcase
-            end
-
-            "T": begin
-                case (glyph_y)
-                    3'd0: glyph_row = 8'b11111111;
-                    3'd1: glyph_row = 8'b00011000;
-                    3'd2: glyph_row = 8'b00011000;
-                    3'd3: glyph_row = 8'b00011000;
-                    3'd4: glyph_row = 8'b00011000;
-                    3'd5: glyph_row = 8'b00011000;
-                    3'd6: glyph_row = 8'b00011000;
-                    3'd7: glyph_row = 8'b00000000;
-                endcase
-            end
-
-            "D": begin
-                case (glyph_y)
-                    3'd0: glyph_row = 8'b11111100;
-                    3'd1: glyph_row = 8'b11000110;
-                    3'd2: glyph_row = 8'b11000011;
-                    3'd3: glyph_row = 8'b11000011;
-                    3'd4: glyph_row = 8'b11000011;
-                    3'd5: glyph_row = 8'b11000110;
-                    3'd6: glyph_row = 8'b11111100;
-                    3'd7: glyph_row = 8'b00000000;
-                endcase
-            end
-
-            "E": begin
-                case (glyph_y)
-                    3'd0: glyph_row = 8'b11111111;
-                    3'd1: glyph_row = 8'b11000000;
-                    3'd2: glyph_row = 8'b11000000;
-                    3'd3: glyph_row = 8'b11111100;
-                    3'd4: glyph_row = 8'b11000000;
-                    3'd5: glyph_row = 8'b11000000;
-                    3'd6: glyph_row = 8'b11111111;
-                    3'd7: glyph_row = 8'b00000000;
-                endcase
-            end
-
-            "Y": begin
-                case (glyph_y)
-                    3'd0: glyph_row = 8'b11000011;
-                    3'd1: glyph_row = 8'b01100110;
-                    3'd2: glyph_row = 8'b00111100;
-                    3'd3: glyph_row = 8'b00011000;
-                    3'd4: glyph_row = 8'b00011000;
-                    3'd5: glyph_row = 8'b00011000;
-                    3'd6: glyph_row = 8'b00011000;
-                    3'd7: glyph_row = 8'b00000000;
-                endcase
-            end
-
-            " ": begin
-                glyph_row = 8'b00000000;
-            end
-
-            default: begin
-                glyph_row = 8'b00000000;
-            end
-        endcase
-    end
-
-    assign pixel = in_text_box && glyph_row[7 - glyph_x];
 
 endmodule
