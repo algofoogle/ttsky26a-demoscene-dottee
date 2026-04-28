@@ -61,7 +61,7 @@ module tt_um_algofoogle_dottee(
     .vpos(v)
   );
 
-  wire [5:0] rgb;
+  wire [5:0] rgb = counter[9:4]^6'b11_10_00; // For now, background is just a colour that gets tinted down ('gems' should get optimised out).
   wire [5:0] rgb_gems;
 
   gems #(.DOTBITS(6)) gems1(
