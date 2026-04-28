@@ -1,8 +1,12 @@
-module dottee_logo(
+module dottee_logo #(
+  parameter START_DELAY = 150,
+  parameter V_REVEAL_DELAY = 50
+) (
     input clk,
     input reset,
     input [9:0] h,
     input [9:0] v,
+    input [9:0] counter,
     output logo_hit
 );
 
@@ -12,13 +16,17 @@ module dottee_logo(
 
   wire circle_inner_start = h==10'd704;
   wire circle_start = (h==10'd640 || circle_inner_start);
-  wire [5:0] circle_radius = (h >= 10'd704) ? 6'd53 : 6'd63; // Inner vs. outer radius.
+  wire [9:0] counter_delayed = (counter<START_DELAY) ? 0 : counter-START_DELAY;
+  wire grow_limit = (counter_delayed>=53);
+  wire [5:0] circle_radius =
+    (h >= 10'd704)  ? (grow_limit ? 6'd53 : counter_delayed)
+                    : 6'd63; // Inner vs. outer radius.
 
   reg [5:0] circle_outer_edge;
 
-  wire [9:0] cvo = v-112;
+  wire [9:0] cvo = v-112; 
 
-  wire [19:0] circle_bits = 20'b01111111111111111100;
+  wire [19:0] circle_bits = 20'b01111111111111111110;
   //////////////////////////////////^
 
   circle_edge slow_circle(
@@ -39,17 +47,19 @@ module dottee_logo(
       circle_outer_edge <= circle_edge;
   end
 
+  wire vertical_reveal = (counter_delayed>V_REVEAL_DELAY && cvo>(128-counter_delayed+V_REVEAL_DELAY) && cvo<(128+counter_delayed-V_REVEAL_DELAY)) || counter_delayed>128;// || cvo<counter;//(-counter+16 > cvo);
+  // wire vertical_reveal =  (cvo-counter>64);// (counter+16 > cvo);
   wire [9:0] cho = h^64;
   wire [5:0] circle_scan = cho[6] ? cho[5:0] : ~cho[5:0];
   wire in_outer_circle = (circle_scan > circle_outer_edge);
   wire in_inner_circle = (circle_scan > circle_edge);
   wire logo_upper_half = (cvo[9:6] == 4'd1);
   wire logo_lower_half = (cvo[9:6] == 4'd2);
-  wire in_circle = circle_valid && in_outer_circle && !in_inner_circle && circle_bits[h[9:5]] && !(h[9:5]==15 && logo_lower_half);
+  wire in_circle = circle_valid && in_outer_circle && !in_inner_circle && circle_bits[h[9:5]] && !(h[9:5]==15 && logo_lower_half && vertical_reveal);
   wire in_logo = (logo_upper_half || logo_lower_half) && (h>32) && (h<640-32);
   wire in_tt_logo = (h[9:8]==2'b01);
-  assign logo_hit = in_logo && (
-    in_circle || // Circle frame.
+
+  wire inclusions = vertical_reveal && (
     h<42 || // "D" left bar.
     (h>=598 && logo_upper_half && cvo>74) || // Final E top-right bar.
     ((cvo<74 || cvo>182) && (h[9:5]==1)) || // "D" top and bottom bars.
@@ -65,10 +75,13 @@ module dottee_logo(
           (cvo>(64+58)                  && h>323 && h<343 && in_tt_logo )     // Lower post; clipped by circle.
         ) && in_outer_circle
     )
-  ) && ~(
+  );
+  wire exclusions = vertical_reveal && (
       // Gaps in TT ring:
       ( in_tt_logo && h<276 && cvo>(64+44) && cvo<(64+52) ) ||
       (      h>342 && h<349 && cvo>(64+100))
-  );
+  ) ;
+
+  assign logo_hit = in_logo && (in_circle || inclusions) && ~exclusions;
 
 endmodule

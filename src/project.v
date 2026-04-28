@@ -74,6 +74,7 @@ module tt_um_algofoogle_dottee(
   dottee_logo logo(
     .clk(clk),
     .reset(reset),
+    .counter(counter),
     .h(h),
     .v(v),
     .logo_hit(logo_hit)
