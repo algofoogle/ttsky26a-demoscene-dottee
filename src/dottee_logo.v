@@ -18,7 +18,8 @@ module dottee_logo(
 
   wire [9:0] cvo = v-112;
 
-  wire [19:0] circle_bits = 20'b01110111111111111100;
+  wire [19:0] circle_bits = 20'b01111111111111111100;
+  //////////////////////////////////^
 
   circle_edge slow_circle(
     .clk(clk),
@@ -42,23 +43,26 @@ module dottee_logo(
   wire [5:0] circle_scan = cho[6] ? cho[5:0] : ~cho[5:0];
   wire in_outer_circle = (circle_scan > circle_outer_edge);
   wire in_inner_circle = (circle_scan > circle_edge);
-  wire in_circle = circle_valid && in_outer_circle && !in_inner_circle && circle_bits[h[9:5]];
-  wire in_logo = (cvo[9:6] == 1 || cvo[9:6] == 2) && (h>32) && (h<640-32);
+  wire logo_upper_half = (cvo[9:6] == 4'd1);
+  wire logo_lower_half = (cvo[9:6] == 4'd2);
+  wire in_circle = circle_valid && in_outer_circle && !in_inner_circle && circle_bits[h[9:5]] && !(h[9:5]==15 && logo_lower_half);
+  wire in_logo = (logo_upper_half || logo_lower_half) && (h>32) && (h<640-32);
   wire in_tt_logo = (h[9:8]==2'b01);
   assign logo_hit = in_logo && (
-    in_circle ||
-    h<42 ||
-    ((cvo<74 || cvo>182) && (h[9:5]==1)) ||
-    (cvo>123 && cvo<133 && cho[9:7]>=3) ||
+    in_circle || // Circle frame.
+    h<42 || // "D" left bar.
+    (h>=598 && logo_upper_half && cvo>74) || // Final E top-right bar.
+    ((cvo<74 || cvo>182) && (h[9:5]==1)) || // "D" top and bottom bars.
+    (cvo>123 && cvo<133 && cho[9:7]>=3) || // "E" middle bar.
     (
         // "TT" inner:
         //NOTE: Instead of constraining the rectangles' left/bottom, just clip with in_outer_circle.
         //NOTE: We could get away with fudging 1 pixel to prefer even-numbered comparisons, if it saves 1 bit here and there.
         (
-          (cvo>(64+27) && cvo<=(64+44)           && h<332 && in_tt_logo) || // Upper bar; clipped by circle.
-          (cvo>(64+58) && cvo< (64+76)  && h>300 && h<361) || // Lower bar.
-          (cvo>(64+27) && cvo<=(64+87)  && h>293 && h<313) || // Upper post.
-          (cvo>(64+58)                  && h>323 && h<343 && in_tt_logo)    // Lower post; clipped by circle.
+          (cvo>(64+27) && cvo<=(64+44)           && h<332 && in_tt_logo ) ||  // Upper bar; clipped by circle.
+          (cvo>(64+58) && cvo< (64+76)  && h>300 && h<361               ) ||  // Lower bar.
+          (cvo>(64+27) && cvo<=(64+87)  && h>293 && h<313               ) ||  // Upper post.
+          (cvo>(64+58)                  && h>323 && h<343 && in_tt_logo )     // Lower post; clipped by circle.
         ) && in_outer_circle
     )
   ) && ~(
