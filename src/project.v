@@ -88,7 +88,7 @@ module tt_um_algofoogle_dottee(
                       rgb;
 
   always @(posedge vsync, negedge rst_n) begin
-    if (reset) begin
+    if (~rst_n) begin
       counter <= 0;
     end else begin
       counter <= counter + 1;
