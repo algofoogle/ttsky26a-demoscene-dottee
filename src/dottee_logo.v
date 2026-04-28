@@ -44,6 +44,7 @@ module dottee_logo(
   wire in_inner_circle = (circle_scan > circle_edge);
   wire in_circle = circle_valid && in_outer_circle && !in_inner_circle && circle_bits[h[9:5]];
   wire in_logo = (cvo[9:6] == 1 || cvo[9:6] == 2) && (h>32) && (h<640-32);
+  wire in_tt_logo = (h[9:8]==2'b01);
   assign logo_hit = in_logo && (
     in_circle ||
     h<42 ||
@@ -54,16 +55,16 @@ module dottee_logo(
         //NOTE: Instead of constraining the rectangles' left/bottom, just clip with in_outer_circle.
         //NOTE: We could get away with fudging 1 pixel to prefer even-numbered comparisons, if it saves 1 bit here and there.
         (
-          (cvo>(64+27) && cvo<=(64+44) && h>268 && h<332) ||  // Upper bar.
-          (cvo>(64+58) && cvo<(64+76) && h>300 && h<361) ||   // Lower bar.
-          (cvo>(64+27) && cvo<=(64+87) && h>293 && h<313) ||  // Upper post.
-          (cvo>(64+58) && cvo<=(64+123) && h>323 && h<343)    // Lower post.
-        ) 
+          (cvo>(64+27) && cvo<=(64+44)           && h<332 && in_tt_logo) || // Upper bar; clipped by circle.
+          (cvo>(64+58) && cvo< (64+76)  && h>300 && h<361) || // Lower bar.
+          (cvo>(64+27) && cvo<=(64+87)  && h>293 && h<313) || // Upper post.
+          (cvo>(64+58)                  && h>323 && h<343 && in_tt_logo)    // Lower post; clipped by circle.
+        ) && in_outer_circle
     )
   ) && ~(
       // Gaps in TT ring:
-      ( h>256 && h<276 && cvo>(64+44) && cvo<(64+52) ) ||
-      ( h>342 && h<349 && cvo>(64+100))
+      ( in_tt_logo && h<276 && cvo>(64+44) && cvo<(64+52) ) ||
+      (      h>342 && h<349 && cvo>(64+100))
   );
 
 endmodule

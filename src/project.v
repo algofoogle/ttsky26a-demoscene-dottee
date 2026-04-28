@@ -28,15 +28,13 @@ module tt_um_algofoogle_dottee(
   wire [9:0] h;
   wire [9:0] v;
 
+  wire reset = ~rst_n;
+
   // TinyVGA PMOD with registered outputs
-  reg [9:0] uo_out_reg;
-  always @(posedge clk) begin
-    if (~rst_n)
-      uo_out_reg <= 0;
-    else
-      uo_out_reg <= {hsync, B[0], G[0], R[0], vsync, B[1], G[1], R[1]};
-  end
-  assign uo_out = uo_out_reg;
+  // NOTE: Only colours are registered, since hsync/vsync jitter is unlikely.
+  reg [5:0] RGB_reg;
+  always @(posedge clk) RGB_reg <= {B[0], G[0], R[0], B[1], G[1], R[1]};
+  assign uo_out = {hsync, RGB_reg[5:3], vsync, RGB_reg[2:0]};
 
   // TT Audio PMOD
   assign uio_out[7] = 0;
@@ -53,7 +51,7 @@ module tt_um_algofoogle_dottee(
 
   hvsync_generator hvsync_gen(
     .clk(clk),
-    .reset(~rst_n),
+    .reset(reset),
     .hsync(hsync),
     .vsync(vsync),
     .display_on(video_active),
@@ -75,23 +73,22 @@ module tt_um_algofoogle_dottee(
 
   dottee_logo logo(
     .clk(clk),
-    .reset(~rst_n),
+    .reset(reset),
     .h(h),
     .v(v),
     .logo_hit(logo_hit)
   );
 
-  wire in_logo_stripe = (v>136) && (v<344);
+  wire in_logo_stripe = (v[8:3] >= 6'b010001) && (v[8:3] <= 6'b101010); // (v>136) && (v<344);
 
   assign {R,G,B} =
     (!video_active)   ? 6'b00_00_00 :
     (logo_hit)        ? 6'b11_11_11 :
     (in_logo_stripe)  ? ((rgb>>1)&6'b01_01_01) :
-    //(in_logo_stripe & (h[0]^v[0])) ? 0 :
                       rgb;
 
   always @(posedge vsync, negedge rst_n) begin
-    if (~rst_n) begin
+    if (reset) begin
       counter <= 0;
     end else begin
       counter <= counter + 1;
