@@ -1,5 +1,5 @@
 module dottee_logo #(
-  parameter START_DELAY = 150,
+  parameter START_DELAY = 240, // Don't do anything for the first 240 frames (~4 seconds) so the display has time to sync.
   parameter V_REVEAL_DELAY = 50
 ) (
     input clk,
@@ -25,9 +25,6 @@ module dottee_logo #(
   reg [5:0] circle_outer_edge;
 
   wire [9:0] cvo = v-112; 
-
-  wire [19:0] circle_bits = 20'b01111111111111111110;
-  //////////////////////////////////^
 
   circle_edge slow_circle(
     .clk(clk),
@@ -55,7 +52,8 @@ module dottee_logo #(
   wire in_inner_circle = (circle_scan > circle_edge);
   wire logo_upper_half = (cvo[9:6] == 4'd1);
   wire logo_lower_half = (cvo[9:6] == 4'd2);
-  wire in_circle = circle_valid && in_outer_circle && !in_inner_circle && circle_bits[h[9:5]] && !(h[9:5]==15 && logo_lower_half && vertical_reveal);
+  wire side_clip = ((h>counter_delayed) && (h<(640-counter_delayed))) || ((h>32) && (h<(640-32)));
+  wire in_circle = circle_valid && in_outer_circle && !in_inner_circle && side_clip && !(h[9:5]==15 && logo_lower_half && vertical_reveal);
   wire in_logo = (logo_upper_half || logo_lower_half) && (h>32) && (h<640-32);
   wire in_tt_logo = (h[9:8]==2'b01);
 
