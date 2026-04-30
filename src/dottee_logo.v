@@ -1,6 +1,6 @@
 module dottee_logo #(
   parameter START_DELAY = 240, // Don't do anything for the first 240 frames (~4 seconds) so the display has time to sync.
-  parameter V_REVEAL_DELAY = 50
+  parameter V_REVEAL_DELAY = 32
 ) (
     input clk,
     input reset,
@@ -44,8 +44,15 @@ module dottee_logo #(
       circle_outer_edge <= circle_edge;
   end
 
+  // Vertical reveal counter:
+  wire [9:0] vrc = {counter_delayed[8:0],1'b0};
+
   // Wipe-reveal logo details up and down from middle:
-  wire vertical_reveal = (counter_delayed>V_REVEAL_DELAY && cvo>(128-counter_delayed+V_REVEAL_DELAY) && cvo<(128+counter_delayed-V_REVEAL_DELAY)) || counter_delayed>128;
+  wire vertical_reveal = vrc>10'd128 || ( // Fully revealed when the counter is over the limit.
+    vrc>V_REVEAL_DELAY &&                 // Start time reached.
+    cvo>(10'd128+V_REVEAL_DELAY-vrc) &&   // Top reveal.
+    cvo<(10'd128-V_REVEAL_DELAY+vrc)      // Bottom reveal.
+  );
 
   // Circle horizontal offset:
   wire [9:0] cho = h^64;
