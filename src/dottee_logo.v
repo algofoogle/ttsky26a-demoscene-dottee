@@ -44,28 +44,47 @@ module dottee_logo #(
       circle_outer_edge <= circle_edge;
   end
 
-  wire vertical_reveal = (counter_delayed>V_REVEAL_DELAY && cvo>(128-counter_delayed+V_REVEAL_DELAY) && cvo<(128+counter_delayed-V_REVEAL_DELAY)) || counter_delayed>128;// || cvo<counter;//(-counter+16 > cvo);
-  // wire vertical_reveal =  (cvo-counter>64);// (counter+16 > cvo);
+  // Wipe-reveal logo details up and down from middle:
+  wire vertical_reveal = (counter_delayed>V_REVEAL_DELAY && cvo>(128-counter_delayed+V_REVEAL_DELAY) && cvo<(128+counter_delayed-V_REVEAL_DELAY)) || counter_delayed>128;
+
+  // Circle horizontal offset:
   wire [9:0] cho = h^64;
+
+  // Circle horizontal hemisphere fill with mirror (to make a full circle):
   wire [5:0] circle_scan = cho[6] ? cho[5:0] : ~cho[5:0];
+
+  // Within (or out) of circles?
   wire in_outer_circle = (circle_scan > circle_outer_edge);
   wire in_inner_circle = (circle_scan > circle_edge);
+
+  // Is our vertical position within any parts of the logo?
   wire logo_upper_half = (cvo[9:6] == 4'd1);
   wire logo_lower_half = (cvo[9:6] == 4'd2);
+
+  // Are we within the ring region (the border between bigger and smaller concentric circles),
+  // but also clipping the bottom hook region of the first (non-truncated) "e":
+  wire in_circle = circle_valid && in_outer_circle && !in_inner_circle;
+
+  // Animated clipping of the left/right sides of the logo (to make "D" and truncated "e"):
   wire side_clip = ((h>counter_delayed) && (h<(640-counter_delayed))) || ((h>32) && (h<(640-32)));
-  wire in_circle = circle_valid && in_outer_circle && !in_inner_circle && side_clip && !(h[9:5]==15 && logo_lower_half && vertical_reveal);
-  wire in_logo = (logo_upper_half || logo_lower_half) && (h>32) && (h<640-32);
+
+  // Are we in the main rectangle of the logo (checked to avoid tiling):
+  wire in_logo = (logo_upper_half || logo_lower_half) && side_clip;
+
+  // Are we in specifically the cell where the TT logo is rendered?
   wire in_tt_logo = (h[9:8]==2'b01);
 
+  // Top/bottom clipping for vertical bar(s) on D and final "e":
+  wire vertical_bar_clip = (cvo>74 && cvo<182);
+
   wire inclusions = vertical_reveal && (
-    h<42 || // "D" left bar.
-    (h>=598 && logo_upper_half && cvo>74) || // Final E top-right bar.
-    ((cvo<74 || cvo>182) && (h[9:5]==1)) || // "D" top and bottom bars.
-    (cvo>123 && cvo<133 && cho[9:7]>=3) || // "E" middle bar.
+    (h<42 && vertical_bar_clip) || // "D" left bar.
+    (h>=598 && vertical_bar_clip && logo_upper_half) || // Final E top-right bar.
     (
         // "TT" inner:
         //NOTE: Instead of constraining the rectangles' left/bottom, just clip with in_outer_circle.
         //NOTE: We could get away with fudging 1 pixel to prefer even-numbered comparisons, if it saves 1 bit here and there.
+        //NOTE: We shold be able to simplify the bit ranges of 'h' checks by using in_tt_logo?
         (
           (cvo>(64+27) && cvo<=(64+44)           && h<332 && in_tt_logo ) ||  // Upper bar; clipped by circle.
           (cvo>(64+58) && cvo< (64+76)  && h>300 && h<361               ) ||  // Lower bar.
@@ -77,9 +96,12 @@ module dottee_logo #(
   wire exclusions = vertical_reveal && (
       // Gaps in TT ring:
       ( in_tt_logo && h<276 && cvo>(64+44) && cvo<(64+52) ) ||
-      (      h>342 && h<349 && cvo>(64+100))
-  ) ;
+      (      h>342 && h<349 && cvo>(64+100)) ||
+      (h[9:5]==15 && logo_lower_half)
+  );
+  // 'overlaid' is an exception to 'exclusions':
+  wire overlaid = vertical_reveal && (cvo>123 && cvo<133 && cho[9:7]>=3); // Middle bar for both "e"s.
 
-  assign logo_hit = in_logo && (in_circle || inclusions) && ~exclusions;
+  assign logo_hit = in_logo && ((in_circle || inclusions) && ~exclusions || overlaid);
 
 endmodule
