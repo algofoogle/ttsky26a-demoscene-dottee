@@ -84,9 +84,9 @@ module tt_um_algofoogle_dottee(
   );
 
   checkerboard checks(
+    // .rgb(rgb_gems),
     .h(rzh),
-    .v(rzv),
-    // .rgb(rgb_gems)
+    .v(rzv)
   );
 
   roto rotozoom_displace(
