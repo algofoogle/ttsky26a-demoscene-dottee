@@ -132,7 +132,9 @@ module checkerboard(
 endmodule
 
 
-module roto(
+module roto #(
+  parameter B=6 // 4 is interesting and visually confusing: Seems to have 2 pivots. 
+) (
   input clk,
   input rst_n,
   input [9:0] counter,
@@ -142,6 +144,10 @@ module roto(
   output [9:0] rzy
 );
 
+  localparam MSB=B-1;
+  localparam RMSB=10+B-3; //NOTE: When B=6, can kinda get away with -4 instead of -3.
+  localparam ROFF=(1<<(B+1));
+
   // False reg:
   reg [9:0] c; //counter[9:4];
 
@@ -149,17 +155,18 @@ module roto(
     c = 31;
     c = 32;
     c = 8; // 45deg.
-    c = counter[9:0]^10'b0000100000;
+    // c = counter[9:0]^10'b0000100000;
+    c = (counter[9:0]^(1<<MSB));
   end
 
   //wire [7:0] XVEC = counter[7:0] ^ {8{counter[8]}}; //(counter[8] ? counter[7:0] : ~counter[7:0]) + 8'b10000000;
 
   //localparam XVEC = 8'b10110101; // (1/sqrt(2))<<8
 
-  wire signed [5:0] xvec = 6'b001000; //5'b01001; //8'b10010110; // sin(36) = ~0.5878 = 0.10010110
-  wire signed [5:0] yvec = 6'b000000 + ({5{c[5]}} ^ c[4:0]); //5'b01100; //8'b11001111; // cos(36) = ~0.8090 = 0.11001111
+  wire signed [MSB:0] xvec = 6'b001000; //5'b01001; //8'b10010110; // sin(36) = ~0.5878 = 0.10010110
+  wire signed [MSB:0] yvec = 6'b000000 + ({MSB{c[MSB]}} ^ c[B-2:0]); //5'b01100; //8'b11001111; // cos(36) = ~0.8090 = 0.11001111
 
-  reg signed [14:0] ox, oy, nx, ny;
+  reg signed [RMSB:0] ox, oy, nx, ny;
 
   always @(posedge clk) begin
     if (~rst_n || (pix_x==799 && pix_y==524)) begin
@@ -181,8 +188,8 @@ module roto(
   
   //wire [9:0] moving_x = pix_x + counter;
 
-  assign rzx = nx[14:4]-(c[5] ? (c<<4)+16+128 : 128-(c<<4));
-  assign rzy = ny[14:4]+(c[5] ? (c<<4)+16 : ~(c<<4));
+  assign rzx = nx[RMSB:B-2]-(c[MSB] ? (c<<(B-2))+(1<<(B-2))+ROFF : ROFF-(c<<(B-2)));
+  assign rzy = ny[RMSB:B-2]+(c[MSB] ? (c<<(B-2))+(1<<(B-2))      : ~(c<<(B-2)));
 
 endmodule
 
