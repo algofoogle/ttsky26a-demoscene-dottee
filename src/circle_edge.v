@@ -14,19 +14,19 @@ module circle_edge(
     reg [5:0] y;
     reg signed [7:0] d;
 
-    wire [5:0] target_y = 6'd63 - vertical_line;
+    wire [5:0] target_y = ~vertical_line;
 
+    wire valid_i = target_y <= radius;
     wire top_octant_hit = y <= target_y;
     wire low_octant_hit = x >= target_y;
 
-    assign valid = target_y <= radius;
-    assign done  = !valid || top_octant_hit || low_octant_hit;
+    assign valid = valid_i;
+    assign done  = !valid_i || top_octant_hit || low_octant_hit;
 
-    // If target_y is in the lower octant, use the mirrored point.
     assign edge_point =
-        !valid          ? 6'd0 :
-        low_octant_hit  ? radius - y :
-                          radius - x;
+        !valid_i       ? 6'd0 :
+        low_octant_hit ? radius - y :
+                         radius - x;
 
     always @(posedge clk) begin
         if (reset) begin
@@ -38,17 +38,16 @@ module circle_edge(
             y <= radius;
             d <= 8'sd1 - $signed({2'b00, radius});
         end else if (!done) begin
-            if (d < 0) begin
+            x <= x + 6'd1;
+
+            if (d[7]) begin
                 d <= d + $signed({1'b0, x, 1'b0}) + 8'sd3;
-                x <= x + 6'd1;
             end else begin
+                y <= y - 6'd1;
                 d <= d
                    + $signed({1'b0, x, 1'b0})
                    - $signed({1'b0, y, 1'b0})
                    + 8'sd5;
-
-                x <= x + 6'd1;
-                y <= y - 6'd1;
             end
         end
     end
