@@ -26,7 +26,7 @@ module dottee_logo #(
   // ...may not make much difference using == operator anyway; they just go into simple bitwise operators?
   wire circle_outer_start = (h==CIRCLE_OUTER_TRIGGER); 
   wire circle_inner_start = (h==CIRCLE_INNER_TRIGGER);
-  wire circle_start = circle_outer_start || circle_inner_start);
+  wire circle_start = circle_outer_start || circle_inner_start;
 `ifdef LOGO_ANIM
   wire [9:0] counter_delayed = (counter<START_DELAY) ? 0 : counter-START_DELAY;
   wire grow_limit = (counter_delayed>=53);
@@ -97,8 +97,12 @@ module dottee_logo #(
   // but also clipping the bottom hook region of the first (non-truncated) "e":
   wire in_circle = circle_valid && in_outer_circle && !in_inner_circle;
 
+`ifdef LOGO_ANIM
   // Animated clipping of the left/right sides of the logo (to make "D" and truncated "e"):
-  wire side_clip = ((h>counter_delayed) && (h<(640-counter_delayed))) || ((h>32) && (h<(640-32)));
+  wire side_clip = ((h>counter_delayed) && (h<(640-counter_delayed))) || ((h>=32) && (h<(640-32)));
+`else
+  wire side_clip = ((h>=32) && (h<(640-32)));
+`endif//LOGO_ANIM
 
   // Are we in the main rectangle of the logo (checked to avoid tiling):
   wire in_logo = (logo_upper_half || logo_lower_half) && side_clip;
