@@ -110,16 +110,9 @@ module dottee_logo #(
   // Are we in specifically the cell where the TT logo is rendered?
   wire in_tt_logo = (h[9:8]==2'b01);
 
-  // Top/bottom clipping for vertical bar(s) on D and final "e":
-  //NOTE: Would >=72 or >=76 (for example) be better? Fewer bits to compare?
-  // Could even just check cvo[7:3] if >=72 works.
-  // Another option: v>=(74+112) && v<(184+112)??
-  //CHEAT: Just clip to in_outer_circle!!
-  wire vertical_bar_clip = (cvo>74 && cvo<182); // >64+10, <192-10
-
-  wire inclusions = vertical_reveal && (
-    (h<42 && vertical_bar_clip) || // "D" left bar. Would <=42 be more efficient?
-    (h>=598 && vertical_bar_clip && logo_upper_half) || // Final E top-right bar.
+  wire inclusions = vertical_reveal && in_outer_circle && (
+    (h<42) || // "D" left bar. Would <=40 or <=42 be more efficient?
+    (h>=598 && logo_upper_half) || // Final E top-right bar.
     (
         // "TT" inner:
         //NOTE: Instead of constraining the rectangles' left/bottom, just clip with in_outer_circle.
@@ -130,7 +123,7 @@ module dottee_logo #(
           (cvo>(64+58) && cvo< (64+76)  && h>300 && h<361               ) ||  // Lower bar.
           (cvo>(64+27) && cvo<=(64+87)  && h>293 && h<313               ) ||  // Upper post.
           (cvo>(64+58)                  && h>323 && h<343 && in_tt_logo )     // Lower post; clipped by circle. //SMELL: Don't need in_tt_logo here?
-        ) && in_outer_circle
+        )
     )
   );
   wire exclusions = vertical_reveal && (
@@ -141,7 +134,7 @@ module dottee_logo #(
   );
   // 'overlaid' is an exception to 'exclusions':
   //NOTE: Could clip this to in_outer_circle?
-  wire overlaid = vertical_reveal && (cvo>123 && cvo<133 && cho[9:7]>=3); // Middle bar for both "e"s.
+  wire overlaid = vertical_reveal && in_outer_circle && (cvo>123 && cvo<133 && cho[9:7]>=3); // Middle bar for both "e"s.
 
   assign logo_hit = in_logo && ((in_circle || inclusions) && ~exclusions || overlaid);
 
