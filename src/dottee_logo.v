@@ -10,30 +10,28 @@ module dottee_logo #(
     output logo_hit
 );
 
-    // Assumes h is 0..799 and v is 0..524.
+    localparam [5:0] circle_outer_radius = 6'd63;
+    localparam [5:0] circle_inner_radius = 6'd53;
 
-    // h == 640
-    wire h_eq_640 = h[9] & ~h[8] & h[7] & ~|h[6:0];
-
-    // h == 768
-    wire h_eq_768 = h[9] & h[8] & ~|h[7:0];
+    // Assumes h is only 0..799.
+    wire h_eq_640 =  h[9] & ~h[8] &  h[7] & ~|h[6:0];
+    wire h_eq_768 =  h[9] &  h[8]          & ~|h[7:0];
+    wire h_ge_768 =  h[9] &  h[8];
 
     wire circle_start = h_eq_640 | h_eq_768;
 
-    // Original: h >= 768 ? 53 : 63
-    wire [5:0] circle_radius = (h[9] & h[8]) ? 6'd53 : 6'd63;
-
-    // Original cvo = v - 112.
-    // For the circle mirror only low 7 bits matter.
-    // -112 mod 128 = +16.
-    wire [6:0] cvo7 = v[6:0] + 7'd16;
-
-    wire [5:0] circle_vertical_line =
-        cvo7[6] ? cvo7[5:0] : ~cvo7[5:0];
+    wire [5:0] circle_radius =
+        h_ge_768 ? circle_inner_radius : circle_outer_radius;
 
     wire circle_done;
     wire circle_valid;
     wire [5:0] circle_edge;
+
+    // Low 7 bits of v - 112. Enough for the circular vertical mirror.
+    wire [6:0] cvo7 = v[6:0] - 7'd112;
+
+    wire [5:0] circle_vertical_line =
+        cvo7[6] ? cvo7[5:0] : ~cvo7[5:0];
 
     circle_edge slow_circle(
         .clk(clk),
@@ -48,7 +46,7 @@ module dottee_logo #(
 
     reg [5:0] circle_outer_edge;
 
-    // h == 700 = 10'b10_1011_1100
+    // h == 700 = 10'b1010111100.
     wire h_eq_700 =
         h[9]  & ~h[8] & h[7] & ~h[6] &
         h[5]  &  h[4] & h[3] &  h[2] &
@@ -61,105 +59,89 @@ module dottee_logo #(
             circle_outer_edge <= circle_edge;
     end
 
-    // Original:
-    // cho = h ^ 64;
-    // circle_scan = cho[6] ? cho[5:0] : ~cho[5:0];
-    //
-    // Equivalent simplification:
+    // Non-animated build.
+    wire vertical_reveal = 1'b1;
+
+    // Original: cho = h ^ 64; circle_scan = cho[6] ? cho[5:0] : ~cho[5:0]
+    // Since only bit 6 is flipped, this reduces to:
     wire [5:0] circle_scan = h[6] ? ~h[5:0] : h[5:0];
 
-    wire in_outer_circle = circle_scan > circle_outer_edge;
-    wire in_inner_circle = circle_scan > circle_edge;
+    wire in_outer_circle = (circle_scan > circle_outer_edge);
+    wire in_inner_circle = (circle_scan > circle_edge);
+
+    // cvo = v - 112.
+    // logo_upper_half: cvo[9:6] == 1 => v = 176..239.
+    // logo_lower_half: cvo[9:6] == 2 => v = 240..303.
+    wire logo_upper_half = (v >= 10'd176) && (v < 10'd240);
+    wire logo_lower_half = (v >= 10'd240) && (v < 10'd304);
 
     wire in_circle = circle_valid && in_outer_circle && !in_inner_circle;
 
-    // Original side_clip: h >= 32 && h < 608
+    // Original: h >= 32 && h < 608.
+    // With h 0..799, use h[9:5].
     wire [4:0] h32 = h[9:5];
-    wire side_clip = |h32 && (h32 < 5'd19);
-
-    // Original:
-    // cvo[9:6] == 1 -> v = 176..239
-    // cvo[9:6] == 2 -> v = 240..303
-    wire logo_upper_half = (v >= 10'd176) && (v < 10'd240);
-    wire logo_lower_half = (v >= 10'd240) && (v < 10'd304);
+    wire side_clip = (|h32) && (h32 < 5'd19);
 
     wire in_logo = (logo_upper_half || logo_lower_half) && side_clip;
 
     wire in_tt_logo = (h[9:8] == 2'b01);
     wire [7:0] hx = h[7:0];
 
-    // Original: h < 42
-    wire d_left_bar =
-        (h[9:6] == 4'd0) &&
-        (h[5:0] < 6'd42);
+    // h < 42, reduced to upper bits zero plus low compare.
+    wire d_left_bar = (h[9:6] == 4'd0) && (h[5:0] < 6'd42);
 
-    // Original:
-    // cvo > 91  -> v > 203
-    // cvo <=108 -> v <=220
-    // h < 332   -> in TT logo, hx < 76
+    // TT detail rectangles, with cvo constants converted into v-space:
+    //
+    // cvo >  91  => v > 203
+    // cvo <= 108 => v <= 220
+    // cvo > 122  => v > 234
+    // cvo < 140  => v < 252
+    // cvo <= 151 => v <= 263
     wire tt_upper_bar =
-        in_tt_logo &&
-        (hx < 8'd76) &&
-        (v > 10'd203) &&
-        (v <= 10'd220);
+        (v > 10'd203) && (v <= 10'd220) &&
+        in_tt_logo && (hx < 8'd76);
 
-    // Original:
-    // cvo > 122 -> v > 234
-    // cvo < 140 -> v < 252
-    // h > 300   -> hx > 44
-    // h < 361   -> hx < 105
     wire tt_lower_bar =
-        in_tt_logo &&
-        (hx > 8'd44) &&
-        (hx < 8'd105) &&
-        (v > 10'd234) &&
-        (v < 10'd252);
+        (v > 10'd234) && (v < 10'd252) &&
+        in_tt_logo && (hx > 8'd44) && (hx < 8'd105);
 
-    // Original:
-    // cvo > 91  -> v > 203
-    // cvo <=151 -> v <=263
-    // h > 293   -> hx > 37
-    // h < 313   -> hx < 57
     wire tt_upper_post =
-        in_tt_logo &&
-        (hx > 8'd37) &&
-        (hx < 8'd57) &&
-        (v > 10'd203) &&
-        (v <= 10'd263);
+        (v > 10'd203) && (v <= 10'd263) &&
+        in_tt_logo && (hx > 8'd37) && (hx < 8'd57);
 
-    // Original:
-    // cvo > 122 -> v > 234
-    // h > 323   -> hx > 67
-    // h < 343   -> hx < 87
     wire tt_lower_post =
-        in_tt_logo &&
-        (hx > 8'd67) &&
-        (hx < 8'd87) &&
-        (v > 10'd234);
+        (v > 10'd234) &&
+        in_tt_logo && (hx > 8'd67) && (hx < 8'd87);
+
+    wire tt_inclusions =
+        tt_upper_bar |
+        tt_lower_bar |
+        tt_upper_post |
+        tt_lower_post;
+
+    wire draw_gate = vertical_reveal && in_outer_circle;
 
     wire inclusions =
-        in_outer_circle &&
+        draw_gate &&
         (
-            d_left_bar     ||
-            tt_upper_bar   ||
-            tt_lower_bar   ||
-            tt_upper_post  ||
-            tt_lower_post
+            d_left_bar ||
+            tt_inclusions
         );
 
-    // Original:
-    // h < 276 inside TT logo -> hx < 20
-    // cvo > 108 -> v > 220
-    // cvo < 116 -> v < 228
+    // Exclusion regions.
+    //
+    // h < 276 inside TT logo => hx < 20.
+    // cvo > 108 => v > 220.
+    // cvo < 116 => v < 228.
     wire excl_tt_gap_1 =
         in_tt_logo &&
         (hx < 8'd20) &&
         (v > 10'd220) &&
         (v < 10'd228);
 
-    // Original:
-    // h > 342 && h < 349 -> hx > 86 && hx < 93
-    // cvo > 164 -> v > 276
+    // h > 342 && h < 349 inside TT logo
+    // 342 - 256 = 86, 349 - 256 = 93.
+    // cvo > 164 => v > 276.
     wire excl_tt_gap_2 =
         in_tt_logo &&
         (hx > 8'd86) &&
@@ -167,24 +149,24 @@ module dottee_logo #(
         (v > 10'd276);
 
     wire excl_lower_slot =
-        (h32 == 5'd15) &&
-        logo_lower_half;
+        (h32 == 5'd15) && logo_lower_half;
 
     wire exclusions =
-        excl_tt_gap_1 ||
-        excl_tt_gap_2 ||
-        excl_lower_slot;
+        vertical_reveal &&
+        (
+            excl_tt_gap_1 ||
+            excl_tt_gap_2 ||
+            excl_lower_slot
+        );
 
     // Original:
-    // cvo > 123 && cvo < 133 -> v > 235 && v < 245
-    // cho[9:7] >= 3. Bit 6 flip does not affect [9:7].
-    wire h_ge_384 = h[9] | (h[8] & h[7]);
-
+    // cvo > 123 && cvo < 133 => v > 235 && v < 245.
+    // cho[9:7] >= 3. Since cho = h ^ 64, bits [9:7] are unchanged.
     wire overlaid =
-        in_outer_circle &&
+        draw_gate &&
         (v > 10'd235) &&
         (v < 10'd245) &&
-        h_ge_384;
+        (h[9:7] >= 3'd3);
 
     assign logo_hit =
         in_logo &&
