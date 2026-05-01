@@ -1,6 +1,8 @@
 // If LOGO_ANIM is defined, 'counter' is used to animate the drawing of the logo.
 //`define LOGO_ANIM
 
+//`define FINAL_E_BAR
+
 module dottee_logo #(
   parameter START_DELAY = 240, // Don't do anything for the first 240 frames (~4 seconds) so the display has time to sync.
   parameter V_REVEAL_DELAY = 32
@@ -112,7 +114,9 @@ module dottee_logo #(
 
   wire inclusions = vertical_reveal && in_outer_circle && (
     (h<42) || // "D" left bar. Would <=40 or <=42 be more efficient?
+`ifdef FINAL_E_BAR
     (h>=598 && logo_upper_half) || // Final E top-right bar.
+`endif//FINAL_E_BAR
     (
         // "TT" inner:
         //NOTE: Instead of constraining the rectangles' left/bottom, just clip with in_outer_circle.
