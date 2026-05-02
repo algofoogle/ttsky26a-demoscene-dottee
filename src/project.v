@@ -5,7 +5,7 @@
 
 `default_nettype none
 
-//`ifdef DEBUG
+// `define DEBUG
 
 module tt_um_algofoogle_dottee(
   input  wire [7:0] ui_in,    // Dedicated inputs
@@ -30,6 +30,18 @@ module tt_um_algofoogle_dottee(
   wire [9:0] h;
   wire [9:0] v;
 
+`ifdef DEBUG
+  wire en_r = ui_in[0];
+  wire en_g = ui_in[1];
+  wire en_b = ui_in[2];
+  wire en_counter = ui_in[7];
+`else
+  wire en_r = 1;
+  wire en_g = 1;
+  wire en_b = 1;
+  wire en_counter = 1;
+`endif
+
   wire reset = ~rst_n;
 
   // TinyVGA PMOD with registered outputs
@@ -50,7 +62,7 @@ module tt_um_algofoogle_dottee(
   wire _unused_ok = &{ena, ui_in, uio_in};
 
   reg [11:0] frame_counter; // 4096 frames ~= 68 seconds.
-  wire [9:0] counter = frame_counter[9:0];
+  wire [9:0] counter = en_counter ? frame_counter[9:0] : 0;
 
   hvsync_generator hvsync_gen(
     .clk(clk),
@@ -62,25 +74,38 @@ module tt_um_algofoogle_dottee(
     .vpos(v)
   );
 
-  wire [5:0] rgb = counter[9:4]^6'b11_10_00; // For now, background is just a colour that gets tinted down ('gems' should get optimised out).
+  wire [5:0] rgb_gate = { {2{en_r}}, {2{en_g}}, {2{en_b}} };
+
+  reg [5:0] rgb_slide;
+  wire [1:0] simples = rgb_gems[5:4];
+  always @(*) begin
+    case (counter[6] ? counter[5:4] : ~counter[5:4])
+    2'd0: rgb_slide = {5'd0,simples[1]};
+    2'd1: rgb_slide = {4'd0,simples};
+    2'd2: rgb_slide = {3'd0,simples[1],simples};
+    2'd3: rgb_slide = {2'd0,rgb_gems[3]&rgb_gems[1],simples[1],simples};
+    endcase
+  end
+
+  wire [5:0] rgb = rgb_slide & rgb_gate; //counter[9:4]^6'b11_10_00; // For now, background is just a colour that gets tinted down ('gems' should get optimised out).
   wire [5:0] rgb_gems;
 
   gems #(.DOTBITS(6)) gems1(
     .h(h),
     .v(v+counter),
-    .counter(counter),
+    .counter(0),//counter),
     .rgb(rgb_gems)
   );
 
   wire logo_hit;
 
   wire logo_en     = frame_counter>=12'd384 && frame_counter<12'd1024;    // Logo visible from 00:06.4 to 00:17.1
-  wire shatter_in  = counter[9:5]==5'b01100;
-  wire shatter_out = counter[9:5]==5'b11111;
+  wire shatter_in  = frame_counter[9:5]==5'b01100;
+  wire shatter_out = frame_counter[9:5]==5'b11111;
 
   wire [9:0] logo_shatter =
-    shatter_in  ? {5'd0,~counter[4:0]} :
-    shatter_out ? {5'd0, counter[4:0]} : 0;
+    shatter_in  ? {5'd0,~frame_counter[4:0]} :
+    shatter_out ? {5'd0, frame_counter[4:0]} : 0;
 
   wire [5:0] logo_color = ~logo_shatter[5:0];
 
