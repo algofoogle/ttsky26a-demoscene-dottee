@@ -6,6 +6,7 @@ module gems #(
   input  [9:0] h,
   input  [9:0] v,
   input  [9:0] counter,
+  input        sheen_en,
   output [5:0] rgb
 );
 
@@ -78,10 +79,11 @@ module gems #(
       {hc[7:6], vc[7:6]};
 
   wire sheen =
-      (hc[5:2] == 4'b1010) &&
-      (vc[5:2] == 4'b1010);
+      sheen_en &&
+      (hc[5:2] == 4'b0101) &&
+      (vc[5:2] == 4'b0101);
 
-  wire [5:0] altcolor = delta[9:4]-counter+folded_counter;
+  wire [5:0] altcolor = delta[9:4];//-counter+folded_counter;
 
   assign rgb =
       sheen ? 6'b11_11_11 :

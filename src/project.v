@@ -64,8 +64,9 @@ module tt_um_algofoogle_dottee(
 
   gems #(.DOTBITS(6)) gems1(
     .h(h),
-    .v(v+counter),
-    .counter(counter),
+    .v(v+(ui_in[4] ? counter : 0)),
+    .counter(ui_in[0] ? counter : 0),
+    .sheen_en(ui_in[5]),
     .rgb(rgb_gems)
   );
 
@@ -82,10 +83,14 @@ module tt_um_algofoogle_dottee(
 
   wire in_logo_stripe = (v[8:3] >= 6'b010001) && (v[8:3] <= 6'b101010); // (v>136) && (v<344);
 
+  wire haze = ui_in[1] & (h[0]^v[0]);
+  wire haze_temporal = ui_in[2] & counter[0];
+  wire logo_stripe_en = ui_in[3];
+
   assign {R,G,B} =
     (!video_active)   ? 6'b00_00_00 :
     (logo_hit)        ? 6'b11_11_11 :
-    (in_logo_stripe && (h[0]^v[0]&counter[0]))  ? ((rgb>>1)&6'b01_01_01) :
+    (logo_stripe_en && in_logo_stripe && (haze^haze_temporal))  ? ((rgb>>1)&6'b01_01_01) :
     // (in_logo_stripe)  ? ((rgb>>1)&6'b01_01_01) :
                       rgb;
 
