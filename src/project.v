@@ -82,7 +82,7 @@ module tt_um_algofoogle_dottee(
   reg [5:0] rgb_slide;
   wire [1:0] simples = rgb_gems[5:4];
   always @(*) begin
-    case (counter[5] ? counter[4:1] : ~counter[4:1])
+    case (counter[4] ? counter[3:0] : ~counter[3:0])
     4'd0: rgb_slide = {5'd0,simples[1]&tfuzz};
     4'd1: rgb_slide = {5'd0,simples[1]&tfuzz};
     4'd2: rgb_slide = {5'd0,simples[1]&tfuzz};
@@ -105,18 +105,13 @@ module tt_um_algofoogle_dottee(
   wire [5:0] rgb = rgb_slide & rgb_gate; //counter[9:4]^6'b11_10_00; // For now, background is just a colour that gets tinted down ('gems' should get optimised out).
   wire [5:0] rgb_gems;
 
-  gems #(.DOTBITS(6)) gems1(
-    .h(h),
-    .v(v+counter),
-    .counter(0),//counter),
-    .rgb(rgb_gems)
-  );
-
   wire logo_hit;
 
   wire logo_en     = frame_counter>=12'd384 && frame_counter<12'd1024;    // Logo visible from 00:06.4 to 00:17.1
   wire shatter_in  = frame_counter[9:5]==5'b01100;
   wire shatter_out = frame_counter[9:5]==5'b11111;
+
+  wire logo_revealed = frame_counter[11:5]>=7'b0001101;
 
   wire [9:0] logo_shatter =
     shatter_in  ? {5'd0,~frame_counter[4:0]} :
@@ -135,7 +130,12 @@ module tt_um_algofoogle_dottee(
     .logo_hit(logo_hit)
   );
 
-  wire in_logo_stripe = (v[8:3] >= 6'b010001) && (v[8:3] <= 6'b101010); // (v>136) && (v<344);
+  gems #(.DOTBITS(5)) gems1(
+    .h(h),
+    .v(v+counter),
+    .counter(logo_revealed ? ~(counter+256) : 0), // Start animating dots after the logo has been fully-revealed.
+    .rgb(rgb_gems)
+  );
 
 `ifdef DEBUG
   wire debug_bar_en = v[9:3] == (480-8)>>3;
