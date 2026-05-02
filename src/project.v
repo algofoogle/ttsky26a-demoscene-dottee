@@ -5,6 +5,8 @@
 
 `default_nettype none
 
+//`ifdef DEBUG
+
 module tt_um_algofoogle_dottee(
   input  wire [7:0] ui_in,    // Dedicated inputs
   output wire [7:0] uo_out,   // Dedicated outputs
@@ -47,7 +49,8 @@ module tt_um_algofoogle_dottee(
   // Suppress unused signals warning
   wire _unused_ok = &{ena, ui_in, uio_in};
 
-  reg [9:0] counter;
+  reg [11:0] frame_counter; // 4096 frames ~= 68 seconds.
+  wire [9:0] counter = frame_counter[9:0];
 
   hvsync_generator hvsync_gen(
     .clk(clk),
@@ -71,7 +74,7 @@ module tt_um_algofoogle_dottee(
 
   wire logo_hit;
 
-  wire logo_en = counter[9:7]>=3'b011;    // Logo visible after 384 frames (6.4 seconds)
+  wire logo_en     = frame_counter>=12'd384 && frame_counter<12'd1024;    // Logo visible from 00:06.4 to 00:17.1
   wire shatter_in  = counter[9:5]==5'b01100;
   wire shatter_out = counter[9:5]==5'b11111;
 
@@ -94,17 +97,26 @@ module tt_um_algofoogle_dottee(
 
   wire in_logo_stripe = (v[8:3] >= 6'b010001) && (v[8:3] <= 6'b101010); // (v>136) && (v<344);
 
+`ifdef DEBUG
+  wire debug_bar_en = v[9:3] == (480-8)>>3;
+  wire debug_limit = (h[9]);
+  wire debug_progress = (frame_counter[11:3]>=h);
+`endif//DEBUG
+
   assign {R,G,B} =
     (!video_active)       ? 6'b00_00_00 :
+`ifdef DEBUG
+    (debug_bar_en && (debug_limit || debug_progress)) ? {6{(h[0]^v[0])}} :
+`endif//DEBUG
     (logo_hit && logo_en) ? logo_color :
     // (in_logo_stripe)      ? ((rgb>>1)&6'b01_01_01) :
                           rgb;
 
   always @(posedge vsync, negedge rst_n) begin
     if (~rst_n) begin
-      counter <= 0;
+      frame_counter <= 0;
     end else begin
-      counter <= counter + 1;
+      frame_counter <= frame_counter + 1;
     end
   end
 
