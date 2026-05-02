@@ -76,14 +76,29 @@ module tt_um_algofoogle_dottee(
 
   wire [5:0] rgb_gate = { {2{en_r}}, {2{en_g}}, {2{en_b}} };
 
+  wire fuzz = h[0]^v[0];
+  wire tfuzz = fuzz^counter[0];
+
   reg [5:0] rgb_slide;
   wire [1:0] simples = rgb_gems[5:4];
   always @(*) begin
-    case (counter[5] ? counter[4:3] : ~counter[4:3])
-    2'd0: rgb_slide = 0;//{2'd0,rgb_gems[3]&rgb_gems[2],simples[1],simples};
-    2'd1: rgb_slide = {5'd0,simples[1]};
-    2'd2: rgb_slide = {4'd0,simples};
-    2'd3: rgb_slide = {2'd0,simples[1:0],simples|2'b1};
+    case (counter[5] ? counter[4:1] : ~counter[4:1])
+    4'd0: rgb_slide = {5'd0,simples[1]&tfuzz};
+    4'd1: rgb_slide = {5'd0,simples[1]&tfuzz};
+    4'd2: rgb_slide = {5'd0,simples[1]&tfuzz};
+    4'd3: rgb_slide = {5'd0,simples[1]&tfuzz};
+    4'd4: rgb_slide = {5'd0,simples[1]&tfuzz};
+    4'd5: rgb_slide = {5'd0,simples[1]&tfuzz};
+    4'd6: rgb_slide = {5'd0,simples[1]&tfuzz};
+    4'd7: rgb_slide = {5'd0,simples[1]};
+    4'd8: rgb_slide = {5'd0,simples[1]};
+    4'd9: rgb_slide = {5'd0,simples[1]};
+    4'd10: rgb_slide = {5'd0,simples[1]};
+    4'd11: rgb_slide = {5'd0,simples[1]};
+    4'd12: rgb_slide = {4'd0,simples};
+    4'd13: rgb_slide = {4'd0,simples};
+    4'd14: rgb_slide = {4'd0,simples};
+    4'd15: rgb_slide = {2'd0,simples[1:0],simples|2'b1};
     endcase
   end
 
@@ -129,13 +144,13 @@ module tt_um_algofoogle_dottee(
 `endif//DEBUG
 
   wire in_logo_shade =
-    ((v[8:5] == 4 || v[8:5] == 10) && (h[0]&v[0])) ||
-    ((v[8:5] >= 5 && v[8:5] <= 9) && (h[0]^v[0]^counter[0]));
+    ((v[8:5] == 4 || v[8:5] == 10) && (fuzz)) ||
+    ((v[8:5] >= 5 && v[8:5] <= 9) && (tfuzz));
   
   assign {R,G,B} =
     (!video_active)       ? 6'b00_00_00 :
 `ifdef DEBUG
-    (debug_bar_en && (debug_limit || debug_progress)) ? {6{(h[0]^v[0])}} :
+    (debug_bar_en && (debug_limit || debug_progress)) ? {6{fuzz}} :
 `endif//DEBUG
     (logo_hit && logo_en) ? logo_color :
     (in_logo_shade)      ? ((rgb>>1)&6'b01_01_01) :
