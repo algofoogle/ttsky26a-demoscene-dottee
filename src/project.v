@@ -71,22 +71,34 @@ module tt_um_algofoogle_dottee(
 
   wire logo_hit;
 
+  wire logo_en = counter[9:7]>=3'b011;    // Logo visible after 384 frames (6.4 seconds)
+  wire shatter_in  = counter[9:5]==5'b01100;
+  wire shatter_out = counter[9:5]==5'b11111;
+
+  wire [9:0] logo_shatter =
+    shatter_in  ? {5'd0,~counter[4:0]} :
+    shatter_out ? {5'd0, counter[4:0]} : 0;
+
+  wire [5:0] logo_color = ~logo_shatter[5:0];
+
+  // wire [9:0] logo_bounce = (counter[9:5]<=5'b10000) ? 0 : (1<<( counter[3] ? ~counter[2:0] : counter[2:0] ));
+
   dottee_logo logo(
     .clk(clk),
     .reset(reset),
     .counter(counter),
-    .h(h),
-    .v(v),
+    .h(h^logo_shatter),
+    .v((v^logo_shatter)),// - logo_bounce),
     .logo_hit(logo_hit)
   );
 
   wire in_logo_stripe = (v[8:3] >= 6'b010001) && (v[8:3] <= 6'b101010); // (v>136) && (v<344);
 
   assign {R,G,B} =
-    (!video_active)   ? 6'b00_00_00 :
-    (logo_hit)        ? 6'b11_11_11 :
-    (in_logo_stripe)  ? ((rgb>>1)&6'b01_01_01) :
-                      rgb;
+    (!video_active)       ? 6'b00_00_00 :
+    (logo_hit && logo_en) ? logo_color :
+    // (in_logo_stripe)      ? ((rgb>>1)&6'b01_01_01) :
+                          rgb;
 
   always @(posedge vsync, negedge rst_n) begin
     if (~rst_n) begin

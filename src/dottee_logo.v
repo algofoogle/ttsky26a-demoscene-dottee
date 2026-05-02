@@ -14,11 +14,11 @@ module dottee_logo #(
     input [9:0] counter,
     output logo_hit
 );
-
+  localparam THICKNESS = 16;
+  localparam [5:0] circle_outer_radius = 6'd63;
+  localparam [5:0] circle_inner_radius = circle_outer_radius - THICKNESS;
   localparam [9:0] CIRCLE_OUTER_TRIGGER = 10'd640;  // 'b1010000000
   localparam [9:0] CIRCLE_INNER_TRIGGER = 10'd768;  // 'b1100000000
-  localparam [5:0] circle_outer_radius = 6'd63;
-  localparam [5:0] circle_inner_radius = 6'd53;
 
   wire circle_done;
   wire circle_valid;
@@ -113,7 +113,7 @@ module dottee_logo #(
   wire in_tt_logo = (h[9:8]==2'b01);
 
   wire inclusions = vertical_reveal && in_outer_circle && (
-    (h<42) || // "D" left bar. Would <=40 or <=42 be more efficient?
+    (h<(32+THICKNESS)) || // "D" left bar. Would <=40 or <=42 be more efficient?
 `ifdef FINAL_E_BAR
     (h>=598 && logo_upper_half) || // Final E top-right bar.
 `endif//FINAL_E_BAR
@@ -132,13 +132,14 @@ module dottee_logo #(
   );
   wire exclusions = vertical_reveal && (
       // Gaps in TT ring:
-      ( in_tt_logo && h<276 && cvo>(64+44) && cvo<(64+52) ) ||
-      (      h>342 && h<349 && cvo>(64+100)) ||
-      (h[9:5]==15 && logo_lower_half)
+      ( in_tt_logo && h<288 && cvo>(64+44) && cvo<(64+52) ) || // Left notch.
+      (      h>342 && h<349 && cvo>=160) || // Bottom notch.
+      (h[9:5]==15 && logo_lower_half) // First "e" hook.
   );
   // 'overlaid' is an exception to 'exclusions':
   //NOTE: Could clip this to in_outer_circle?
-  wire overlaid = vertical_reveal && in_outer_circle && (cvo>123 && cvo<133 && cho[9:7]>=3); // Middle bar for both "e"s.
+  wire overlaid = vertical_reveal && in_outer_circle &&
+    (cvo>(128-THICKNESS/2) && cvo<(128+THICKNESS/2) && cho[9:7]>=3); // Middle bar for both "e"s.
 
   assign logo_hit = in_logo && ((in_circle || inclusions) && ~exclusions || overlaid);
 
