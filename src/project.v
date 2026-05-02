@@ -59,7 +59,7 @@ module tt_um_algofoogle_dottee(
     .vpos(v)
   );
 
-  wire [5:0] rgb = counter[9:4]^6'b11_10_00; // For now, background is just a colour that gets tinted down ('gems' should get optimised out).
+  wire [5:0] rgb = rgb_gems; //counter[9:4]^6'b11_10_00; // For now, background is just a colour that gets tinted down ('gems' should get optimised out).
   wire [5:0] rgb_gems;
 
   gems #(.DOTBITS(6)) gems1(
@@ -85,7 +85,8 @@ module tt_um_algofoogle_dottee(
   assign {R,G,B} =
     (!video_active)   ? 6'b00_00_00 :
     (logo_hit)        ? 6'b11_11_11 :
-    (in_logo_stripe)  ? ((rgb>>1)&6'b01_01_01) :
+    (in_logo_stripe && (h[0]^v[0]&counter[0]))  ? ((rgb>>1)&6'b01_01_01) :
+    // (in_logo_stripe)  ? ((rgb>>1)&6'b01_01_01) :
                       rgb;
 
   always @(posedge vsync, negedge rst_n) begin
