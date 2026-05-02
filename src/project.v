@@ -5,7 +5,7 @@
 
 `default_nettype none
 
-// `define DEBUG
+`define DEBUG
 
 module tt_um_algofoogle_dottee(
   input  wire [7:0] ui_in,    // Dedicated inputs
@@ -102,12 +102,19 @@ module tt_um_algofoogle_dottee(
     endcase
   end
 
-  wire [5:0] rgb = rgb_slide & rgb_gate; //counter[9:4]^6'b11_10_00; // For now, background is just a colour that gets tinted down ('gems' should get optimised out).
+  wire [9:0] hvdelta = (h-(counter<<5))+(v>>1);
+  wire diag_wipe = hvdelta[9:6]==counter[4:1];
+
+  wire [5:0] rgb = rgb_gate & (
+    diag_wipe ? rgb_gems : rgb_slide
+  );
+
   wire [5:0] rgb_gems;
 
   wire logo_hit;
 
-  wire logo_en     = frame_counter>=12'd384 && frame_counter<12'd1024;    // Logo visible from 00:06.4 to 00:17.1
+  wire logo_gone   = frame_counter>=12'd1024;
+  wire logo_en     = frame_counter>=12'd384 && !logo_gone;    // Logo visible from 00:06.4 to 00:17.1
   wire shatter_in  = frame_counter[9:5]==5'b01100;
   wire shatter_out = frame_counter[9:5]==5'b11111;
 
@@ -143,9 +150,10 @@ module tt_um_algofoogle_dottee(
   wire debug_progress = (frame_counter[11:3]>=h);
 `endif//DEBUG
 
-  wire in_logo_shade =
+  wire in_logo_shade = ~logo_gone && (
     ((v[8:5] == 4 || v[8:5] == 10) && (fuzz)) ||
-    ((v[8:5] >= 5 && v[8:5] <= 9) && (tfuzz));
+    ((v[8:5] >= 5 && v[8:5] <= 9) && (tfuzz))
+  );
   
   assign {R,G,B} =
     (!video_active)       ? 6'b00_00_00 :
