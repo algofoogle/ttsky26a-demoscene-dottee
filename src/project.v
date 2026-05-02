@@ -79,11 +79,11 @@ module tt_um_algofoogle_dottee(
   reg [5:0] rgb_slide;
   wire [1:0] simples = rgb_gems[5:4];
   always @(*) begin
-    case (counter[6] ? counter[5:4] : ~counter[5:4])
-    2'd0: rgb_slide = {5'd0,simples[1]};
-    2'd1: rgb_slide = {4'd0,simples};
-    2'd2: rgb_slide = {3'd0,simples[1],simples};
-    2'd3: rgb_slide = {2'd0,rgb_gems[3]&rgb_gems[1],simples[1],simples};
+    case (counter[5] ? counter[4:3] : ~counter[4:3])
+    2'd0: rgb_slide = 0;//{2'd0,rgb_gems[3]&rgb_gems[2],simples[1],simples};
+    2'd1: rgb_slide = {5'd0,simples[1]};
+    2'd2: rgb_slide = {4'd0,simples};
+    2'd3: rgb_slide = {2'd0,simples[1:0],simples|2'b1};
     endcase
   end
 
@@ -128,13 +128,17 @@ module tt_um_algofoogle_dottee(
   wire debug_progress = (frame_counter[11:3]>=h);
 `endif//DEBUG
 
+  wire in_logo_shade =
+    ((v[8:5] == 4 || v[8:5] == 10) && (h[0]&v[0])) ||
+    ((v[8:5] >= 5 && v[8:5] <= 9) && (h[0]^v[0]^counter[0]));
+  
   assign {R,G,B} =
     (!video_active)       ? 6'b00_00_00 :
 `ifdef DEBUG
     (debug_bar_en && (debug_limit || debug_progress)) ? {6{(h[0]^v[0])}} :
 `endif//DEBUG
     (logo_hit && logo_en) ? logo_color :
-    // (in_logo_stripe)      ? ((rgb>>1)&6'b01_01_01) :
+    (in_logo_shade)      ? ((rgb>>1)&6'b01_01_01) :
                           rgb;
 
   always @(posedge vsync, negedge rst_n) begin
