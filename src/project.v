@@ -204,7 +204,7 @@ module tt_um_algofoogle_dottee(
 `endif//DEBUG_BAR
 (
     (logo_hit && logo_en) ? logo_color :
-    (in_logo_shade)      ? ((rgb>>1)&6'b01_01_01) :
+    (in_logo_shade && logo_en)      ? ((rgb>>1)&6'b01_01_01) :
                           rgb) | whiteout;
 
 
