@@ -5,7 +5,18 @@
 
 `default_nettype none
 
-`define DEBUG
+// // `define DEBUG_GATES   // Gate certain functions using ui_in.
+// `define DEBUG_BAR     // Show the progress bar.
+// // For debugging, optionally constrain demo frame_counter to a given timeframe:
+// // Short initial delay, loop early:
+// `define DEBUG_TSTART  ( 2*60)
+// `define DEBUG_TSTOP   (20*60) 
+
+// // // Watch the logo dissove & flash:
+// // `define DEBUG_TSTART  (16*60)
+// // `define DEBUG_TSTOP   (18*60) 
+
+// // `define DEBUG_SLOW    5
 
 module tt_um_algofoogle_dottee(
   input  wire [7:0] ui_in,    // Dedicated inputs
@@ -30,7 +41,7 @@ module tt_um_algofoogle_dottee(
   wire [9:0] h;
   wire [9:0] v;
 
-`ifdef DEBUG
+`ifdef DEBUG_GATES
   wire en_r = ui_in[0];
   wire en_g = ui_in[1];
   wire en_b = ui_in[2];
@@ -102,12 +113,42 @@ module tt_um_algofoogle_dottee(
     endcase
   end
 
-  wire [9:0] hvdelta = (h-(counter<<5))+(v>>1);
-  wire diag_wipe = hvdelta[9:6]==counter[4:1];
+  wire [9:0] hvdelta = (h-(counter<<5)+10'b1000000000)+(v>>1);
+  wire start_diag_wipe = frame_counter >= 12'b0011111_10000;
+  wire within_whiteout = frame_counter >= 12'b0100000_00000 && (frame_counter < 12'b0100000_10000);
+  wire diag_wipe = (hvdelta[9:7] == 0) && (start_diag_wipe) && (frame_counter < 12'b0100000_01100);//counter[9:6]);
 
-  wire [5:0] rgb = rgb_gate & (
+  reg [5:0] whiteout;
+  always @(*) begin
+    if (within_whiteout) begin
+      case (counter[3:0])
+      4'd0: whiteout = 6'b01_00_00;
+      4'd1: whiteout = 6'b01_01_00;
+      4'd2: whiteout = 6'b10_01_00;
+      4'd3: whiteout = 6'b10_10_00;
+      4'd4: whiteout = 6'b11_10_00;
+      4'd5: whiteout = 6'b11_11_00;
+      4'd6: whiteout = 6'b11_11_01;
+      4'd7: whiteout = 6'b11_11_11;
+      4'd8: whiteout = 6'b11_11_11;
+      4'd9: whiteout = 6'b11_11_11;
+      default: whiteout = 6'b11_11_11;
+      // 4'd10: whiteout = 6'b11_11_11;
+      // 4'd11: whiteout = 6'b11_11_11;
+      // 4'd12: whiteout = 6'b11_11_11;
+      // 4'd13: whiteout = 6'b11_11_11;
+      // 4'd14: whiteout = 6'b11_11_11;
+      // 4'd15: whiteout = 6'b11_11_11;
+      endcase
+    end else begin
+      whiteout = 0;
+    end
+  end
+
+
+  wire [5:0] rgb = rgb_gate & ((
     diag_wipe ? rgb_gems : rgb_slide
-  );
+  ));
 
   wire [5:0] rgb_gems;
 
@@ -144,7 +185,7 @@ module tt_um_algofoogle_dottee(
     .rgb(rgb_gems)
   );
 
-`ifdef DEBUG
+`ifdef DEBUG_BAR
   wire debug_bar_en = v[9:3] == (480-8)>>3;
   wire debug_limit = (h[9]);
   wire debug_progress = (frame_counter[11:3]>=h);
@@ -157,19 +198,52 @@ module tt_um_algofoogle_dottee(
   
   assign {R,G,B} =
     (!video_active)       ? 6'b00_00_00 :
-`ifdef DEBUG
+`ifdef DEBUG_BAR
     (debug_bar_en && (debug_limit || debug_progress)) ? {6{fuzz}} :
-`endif//DEBUG
+`endif//DEBUG_BAR
+(
     (logo_hit && logo_en) ? logo_color :
     (in_logo_shade)      ? ((rgb>>1)&6'b01_01_01) :
-                          rgb;
+                          rgb) | whiteout;
+
+
+`ifdef DEBUG_SLOW
+  reg [3:0] debug_slow;
+`endif
 
   always @(posedge vsync, negedge rst_n) begin
     if (~rst_n) begin
+      `ifdef DEBUG_TSTART
+      frame_counter <= `DEBUG_TSTART;
+      `else      
       frame_counter <= 0;
+      `endif
+
+      `ifdef DEBUG_SLOW
+      debug_slow <= 0;
+    end else if (debug_slow != `DEBUG_SLOW) begin
+      debug_slow <= debug_slow + 1;
+    end else begin
+      debug_slow <= 0;
+      if (0) begin
+      `endif
+
+      `ifdef DEBUG_TSTOP
+      end else if (frame_counter==`DEBUG_TSTOP-1) begin
+        `ifdef DEBUG_TSTART
+        frame_counter <= `DEBUG_TSTART;
+        `else
+        frame_counter <= 0;
+        `endif
+      `endif
     end else begin
       frame_counter <= frame_counter + 1;
     end
+
+`ifdef DEBUG_SLOW
+  end
+`endif
+
   end
 
 endmodule
