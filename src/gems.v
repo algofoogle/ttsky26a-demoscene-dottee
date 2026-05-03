@@ -1,5 +1,5 @@
-`define CLASSIC_SQ // If defined, use "classic" squaring with real x*x. Else, use a LUT of squares.
-// `define TRUE_SQ // Should LUT square use true negatives?
+// `define CLASSIC_SQ // If defined, use "classic" squaring with real x*x. Else, use a LUT of squares.
+`define TRUE_SQ // Should LUT square use true negatives?
 
 `ifndef CLASSIC_SQ
 // LUT-based Approximate Square:
