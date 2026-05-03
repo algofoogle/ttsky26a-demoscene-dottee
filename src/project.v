@@ -31,15 +31,13 @@ module tt_um_algofoogle_dottee(
 
   localparam DOTBITS = 6; //NOTE: Increasing to 6 gives quadrant colours, like gems.
 
-  // Creates an attenuated sound during the logo that sounds like a drum/hat:
-  reg [3:0] pwm;
-  always @(posedge clk) pwm <= (~rst_n) ? 0 : pwm + 1;
-  wire speaker = 
-    full_color  ? (rgb_unblanked[3]) & (pwm > counter[3:0]) :
-    logo_en     ? (rgb_unblanked[0] | ( counter[6] & ~vsync )) & (pwm > counter[3:0]):
-                  (rgb_unblanked[2] | ( counter[5] & ~vsync )) & (pwm > counter[3:0]) & (pwm[0]);// & pwm[1]);
-    // (rgb_unblanked[2] | logo_hit | ( counter[6] & ~vsync ) ) & (pwm > counter[3:0]) & (logo_en ? 1 : (pwm[0] & pwm[1]));
-    //(rgb_unblanked[0] | logo_hit | ( counter[6] & ~vsync ) ) & (pwm > counter[4:0]);
+  // // Creates an attenuated sound during the logo that sounds like a drum/hat:
+  // reg [3:0] pwm;
+  // always @(posedge clk) pwm <= (~rst_n) ? 0 : pwm + 1;
+  wire speaker = 0;
+    // full_color  ? (rgb_unblanked[3]) & (pwm > counter[3:0]) :
+    // logo_en     ? (rgb_unblanked[0] | ( counter[6] & ~vsync )) & (pwm > counter[3:0]):
+    //               (rgb_unblanked[2] | ( counter[5] & ~vsync )) & (pwm > counter[3:0]) & (pwm[0]);// & pwm[1]);
 
 
   // reg speaker;
