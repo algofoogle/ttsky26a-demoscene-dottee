@@ -31,45 +31,15 @@ module tt_um_algofoogle_dottee(
 
   localparam DOTBITS = 6; //NOTE: Increasing to 6 gives quadrant colours, like gems.
 
-  reg [9:0] f;
-  reg [9:0] a;
-
-  reg speaker_reg;
-  wire speaker = speaker_reg & rgb_unblanked[3];
-
-  always @(posedge clk) begin
-    a = 0;
-    if (~rst_n) begin
-      f <= 0;
-      speaker_reg <= 0;
-    end else if (h==0 || h==400) begin
-      case (ui_in[3:0])
-      4'b0000: a = 0;
-      4'b0001: a = 241;
-      4'b0010: a = 227;
-      4'b0011: a = 214;
-      4'b0100: a = 202;
-      4'b0101: a = 191;
-      4'b0110: a = 180;
-      4'b0111: a = 170;
-      4'b1000: a = 161;
-      4'b1001: a = 152;
-      4'b1010: a = 143;
-      4'b1011: a = 135;
-      4'b1100: a = 127;
-      4'b1101: a = 120;
-      4'b1110: a = 114;
-      4'b1111: a = 107;
-      endcase
-      if (a != 0 && f >= a-1) begin
-        f <= 0;
-        speaker_reg <= ~speaker_reg;
-      end else begin
-        f <= f + 1;
-      end
-    end
-  end
-
+  // Creates an attenuated sound during the logo that sounds like a drum/hat:
+  reg [3:0] pwm;
+  always @(posedge clk) pwm <= (~rst_n) ? 0 : pwm + 1;
+  wire speaker = 
+    full_color  ? (rgb_unblanked[3]) & (pwm > counter[3:0]) :
+    logo_en     ? (rgb_unblanked[0] | ( counter[6] & ~vsync )) & (pwm > counter[3:0]):
+                  (rgb_unblanked[2] | ( counter[5] & ~vsync )) & (pwm > counter[3:0]) & (pwm[0]);// & pwm[1]);
+    // (rgb_unblanked[2] | logo_hit | ( counter[6] & ~vsync ) ) & (pwm > counter[3:0]) & (logo_en ? 1 : (pwm[0] & pwm[1]));
+    //(rgb_unblanked[0] | logo_hit | ( counter[6] & ~vsync ) ) & (pwm > counter[4:0]);
 
 
   // reg speaker;
