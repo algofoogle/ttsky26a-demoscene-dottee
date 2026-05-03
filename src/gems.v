@@ -1,5 +1,5 @@
 // `define CLASSIC_SQ // If defined, use "classic" squaring with real x*x. Else, use a LUT of squares.
-// `define ROUGH_LUT_6B // Use a LUT of rough approximations (expected to optimise better) for fixed 6-bit-wide squares.
+`define ROUGH_LUT_6B // Use a LUT of rough approximations (expected to optimise better) for fixed 6-bit-wide squares.
 // `define TRUE_SQ // Should LUT square use true negatives?
 
 `ifndef CLASSIC_SQ
