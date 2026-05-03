@@ -179,7 +179,7 @@ module tt_um_algofoogle_dottee(
     .logo_hit(logo_hit)
   );
 
-  gems #(.DOTBITS(5)) gems1(
+  gems #(.DOTBITS(6)) gems1(
     .h(h),
     .v(v+counter),
     .counter(logo_revealed ? ~(counter+256) : 0), // Start animating dots after the logo has been fully-revealed.
