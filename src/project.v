@@ -117,6 +117,7 @@ module tt_um_algofoogle_dottee(
   wire start_diag_wipe = frame_counter >= 12'b0011111_10000;
   wire within_whiteout = frame_counter >= 12'b0100000_00000 && (frame_counter < 12'b0100000_10000);
   wire diag_wipe = (hvdelta[9:7] == 0) && (start_diag_wipe) && (frame_counter < 12'b0100000_01100);//counter[9:6]);
+  wire full_color = (frame_counter >= 12'b0100000_10000);
 
   reg [5:0] whiteout;
   always @(*) begin
@@ -147,7 +148,7 @@ module tt_um_algofoogle_dottee(
 
 
   wire [5:0] rgb = rgb_gate & ((
-    diag_wipe ? rgb_gems : rgb_slide
+    (diag_wipe | full_color) ? rgb_gems : rgb_slide
   ));
 
   wire [5:0] rgb_gems;
