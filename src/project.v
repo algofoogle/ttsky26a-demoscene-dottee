@@ -31,6 +31,69 @@ module tt_um_algofoogle_dottee(
 
   localparam DOTBITS = 6; //NOTE: Increasing to 6 gives quadrant colours, like gems.
 
+  reg [9:0] f;
+  reg [9:0] a;
+
+  reg speaker_reg;
+  wire speaker = speaker_reg & rgb_unblanked[3];
+
+  always @(posedge clk) begin
+    a = 0;
+    if (~rst_n) begin
+      f <= 0;
+      speaker_reg <= 0;
+    end else if (h==0 || h==400) begin
+      case (ui_in[3:0])
+      4'b0000: a = 0;
+      4'b0001: a = 241;
+      4'b0010: a = 227;
+      4'b0011: a = 214;
+      4'b0100: a = 202;
+      4'b0101: a = 191;
+      4'b0110: a = 180;
+      4'b0111: a = 170;
+      4'b1000: a = 161;
+      4'b1001: a = 152;
+      4'b1010: a = 143;
+      4'b1011: a = 135;
+      4'b1100: a = 127;
+      4'b1101: a = 120;
+      4'b1110: a = 114;
+      4'b1111: a = 107;
+      endcase
+      if (a != 0 && f >= a-1) begin
+        f <= 0;
+        speaker_reg <= ~speaker_reg;
+      end else begin
+        f <= f + 1;
+      end
+    end
+  end
+
+
+
+  // reg speaker;
+  // always @(*) begin
+  //   case (ui_in[3:0])
+  //   4'b0000: speaker = rgb_unblanked[0]; //RGB_reg[5]; // B[0]
+  //   4'b0001: speaker = rgb_unblanked[1]; //RGB_reg[2]; // B[1]
+  //   4'b0010: speaker = rgb_unblanked[2]; //RGB_reg[4]; // G[0]
+  //   4'b0011: speaker = rgb_unblanked[3]; //RGB_reg[1]; // G[1] // Interesting wobble beneath dominant 60Hz.
+  //   4'b0100: speaker = rgb_unblanked[4]; //RGB_reg[3]; // R[0] // Lasery sound under annoying 60Hz.
+  //   4'b0101: speaker = rgb_unblanked[5]; //RGB_reg[0]; // R[1] // Dalek under 60Hz.
+  //   4'b0110: speaker = rgb_unblanked[0] & rgb_unblanked[3];
+  //   4'b0111: speaker = rgb_unblanked[0] | rgb_unblanked[3]; // Annoying 60Hz buzz.
+  //   4'b1000: speaker = rgb_unblanked[0] ^ rgb_unblanked[1];
+  //   4'b1001: speaker = rgb_unblanked[0] ^ rgb_unblanked[2];
+  //   4'b1010: speaker = rgb_unblanked[0] ^ rgb_unblanked[3];
+  //   4'b1011: speaker = rgb_unblanked[0] ^ rgb_unblanked[4];
+  //   4'b1100: speaker = v[4];
+  //   4'b1101: speaker = v[5];
+  //   4'b1110: speaker = v[6];
+  //   4'b1111: speaker = v[7];
+  //   endcase
+  // end
+
   // VGA signals
   wire hsync;
   wire vsync;
@@ -64,7 +127,7 @@ module tt_um_algofoogle_dottee(
   assign uo_out = {hsync, RGB_reg[5:3], vsync, RGB_reg[2:0]};
 
   // TT Audio PMOD
-  assign uio_out[7] = 0;
+  assign uio_out[7] = speaker;
   assign uio_oe[7] = 1;
 
   // Unused outputs assigned to 0.
@@ -199,16 +262,17 @@ module tt_um_algofoogle_dottee(
     ((v[8:5] == 4 || v[8:5] == 10) && (fuzz)) ||
     ((v[8:5] >= 5 && v[8:5] <= 9) && (tfuzz))
   );
-  
-  assign {R,G,B} =
-    (!video_active)       ? 6'b00_00_00 :
+
+  wire [5:0] rgb_unblanked = 
 `ifdef DEBUG_BAR
     (debug_bar_en && (debug_limit || debug_progress)) ? {6{fuzz}} :
 `endif//DEBUG_BAR
 (
     (logo_hit && logo_en) ? logo_color :
-    (in_logo_shade && logo_en)      ? ((rgb>>1)&6'b01_01_01) :
+    // (in_logo_shade && logo_en)      ? ((rgb>>1)&6'b01_01_01) :
                           rgb) | whiteout;
+
+  assign {R,G,B} = (!video_active) ? 6'b00_00_00 : rgb_unblanked;
 
 
 `ifdef DEBUG_SLOW
