@@ -101,6 +101,7 @@ module gems #(
   input [9:0] h,
   input [9:0] v,
   input [9:0] counter,
+  input [3:0] mode,
   output [5:0] rgb
 );
 
@@ -130,7 +131,21 @@ module gems #(
 
   wire [9:0] hvc = {hc[9:5]+vc[9:5],1'b0} + (counter>>0);
 
-  wire hit = d < r2; // Also try: h[0]^v[0] ? 0 : d < r*r; and simply: 1;
+  wire checkerboard = hc[6]^vc[6];
+
+  wire hit = 
+    (mode==0) ? (d < r2) : // Normal combo.
+    (mode==1) ? (h[0]^v[0] ? 0 : (d < r*r)) : // Fuzzing, but just meh.
+    (mode==2) ? 1 : // Smooth baubles.
+    (mode==3) ? (d[10]^d[7]) : // Good quadrant whipple -- Also good in blue.
+    (mode==4) ? r[3] :
+    (mode==5) ? ((d < r2) | d[10]) : // Nicer BG with standard baubles.
+    (mode==6) ? (checkerboard ? 1 : d[7]) : // Mix of quadrants and smooth baubles. A bit dizzying.
+    (mode==7) ? (checkerboard ? (d < r2) : 0) :
+    (mode==8) ? (checkerboard ? (d[10]^d[7]) : (d < r2)) : // Quadrant whipple vs. normal. Pretty, if busy.
+    (mode==9) ? (checkerboard ? 1 : (d < r2)) : // Smooth baubles vs. normal. Nice and relaxed.
+                d[20-mode];
+  
   wire [9:0] delta = d + r2; // Subtracting is nice, but so is adding and other logical ops.
   wire [5:0] color = hvc;
 

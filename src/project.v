@@ -45,13 +45,15 @@ module tt_um_algofoogle_dottee(
   wire en_r = ui_in[0];
   wire en_g = ui_in[1];
   wire en_b = ui_in[2];
-  wire en_counter = ui_in[7];
+  wire en_counter = ui_in[3];
 `else
   wire en_r = 1;
   wire en_g = 1;
   wire en_b = 1;
   wire en_counter = 1;
 `endif
+
+  wire [3:0] gem_mode_ui = ui_in[7:4];
 
   wire reset = ~rst_n;
 
@@ -183,6 +185,7 @@ module tt_um_algofoogle_dottee(
     .h(h),
     .v(v+counter),
     .counter(logo_revealed ? ~(counter+256) : 0), // Start animating dots after the logo has been fully-revealed.
+    .mode(gem_mode_ui),
     .rgb(rgb_gems)
   );
 
