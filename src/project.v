@@ -222,16 +222,21 @@ module tt_um_algofoogle_dottee(
 
   wire gem_hit;
 
-  wire [9:0] vgems = v+counter+32;
+  wire [9:0] vgems = v+counter+(1<<(DOTBITS-1));
 
-  wire hstagger = vgems[6]; // Half offset alternate rows of gems?
+  wire hstagger = vgems[DOTBITS]; // Half offset alternate rows of gems?
 
-  gems #(.DOTBITS(6)) gems1(
-    .h(hstagger ? h+32 : h),
+  wire [DOTBITS-1:0] max_radius = (1<<(DOTBITS-1));
+
+  gems #(.DOTBITS(DOTBITS)) gems1(
+    .h(hstagger ? h+(1<<(DOTBITS-1)) : h),
     .v(v+counter),
     .counter(logo_revealed ? ~(counter+256) : 0), // Start animating dots after the logo has been fully-revealed.
+    // .fmode(15),
     .fmode(gem_mode),
-    .bmode(0),
+    // .bmode(gem_bmode),
+    .bmode(7), // 0 is black. 1 is original. 7 is blue/magenta.
+    .inr(max_radius), //NOTE: Intentionally or not, radius behaves as the absolute of a signed value??
     .hit(gem_hit),
     .rgb(rgb_gems)
   );

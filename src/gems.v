@@ -5,7 +5,7 @@
 `ifndef CLASSIC_SQ
 `ifdef ROUGH_LUT_6B
 
-  // Allows +/-8 error.
+  // This is a rough-approximation 6-bit-only implementation that allows +/-8 error.
   module sqalut #(
     parameter B=6 // NOT USED. Dummy, for swapping this for the parametric version of 'sqalut'.
   ) (
@@ -104,6 +104,9 @@ module gems #(
   input [9:0] counter,
   input [3:0] fmode, // Front effect mode.
   input [2:0] bmode, // Background effect mode.
+  input [DOTBITS-1:0] inr,
+  // output [DOTBITS-1:0] hlut,
+  // output [DOTBITS-1:0] vlut,
   output [5:0] rgb,
   output hit
 );
@@ -111,7 +114,9 @@ module gems #(
   wire [9:0] hc = h+(1<<(DOTBITS-1));
   wire [9:0] vc = v+(1<<(DOTBITS-1));
   // wire [9:0] r = (counter[DOTBITS-2:0] ^ {(DOTBITS-1){counter[DOTBITS-1]}}) * ({2{hc[7]}} ^ hc[6:5]);
-  wire [9:0] r = (counter[DOTBITS-2:0] ^ {(DOTBITS-1){counter[DOTBITS-1]}}) + 1 + ({3{hc[8]}} ^ hc[7:5]);
+  wire [9:0] r =
+    fmode==15 ? inr :
+                (counter[DOTBITS-2:0] ^ {(DOTBITS-1){counter[DOTBITS-1]}}) + 1 + ({3{hc[8]}} ^ hc[7:5]);
 
   wire signed [9:0] dx = $signed(h[DOTBITS-1:0]);
   wire signed [9:0] dy = $signed(v[DOTBITS-1:0]);
@@ -134,13 +139,24 @@ module gems #(
 
   wire [9:0] hvc = {hc[9:5]+vc[9:5],1'b0} + (counter>>0);
 
-  wire checkerboard = hc[6]^vc[6];
+  wire checkerboard = hc[DOTBITS]^vc[DOTBITS];
 
   wire regular_hit = (d < r2);
 
+  wire [9:0] delta = d + r2; // Subtracting is nice, but so is adding and other logical ops.
+
+  wire [5:0] white = 6'b11_11_11;
+
+  wire sheen = (hc[DOTBITS-1:2]==4'b101 && vc[DOTBITS-1:2]==4'b101);// ||
+
+  // Not regs:
+  reg [5:0] color;
   reg ho;
   assign hit = ho;
   always @(*) begin
+    // Pretty dots by default:
+    color = hvc;
+    // Select where hit calculation comes from:
     case (fmode)
     4'd0:   ho = 0;
     4'd1:   ho = 1;                                         // This effect used to be mode2
@@ -152,12 +168,13 @@ module gems #(
     4'd7:   ho = (checkerboard ? (d < r2) : 0);
     4'd8:   ho = (checkerboard ? (d[10]^d[7]) : (d < r2));
     4'd9:   ho = 0;
-    4'd10:  ho = d[10];
-    4'd11:  ho = d[9];
-    4'd12:  ho = d[8];
-    4'd13:  ho = d[7];
-    4'd14:  ho = d[6];
-    4'd15:  ho = 0;                                         // UNUSED.
+    4'd10:  ho = d[DOTBITS+4];
+    4'd11:  ho = d[DOTBITS+3];
+    4'd12:  ho = d[DOTBITS+2];
+    4'd13:  ho = d[DOTBITS+1];
+    4'd14:  ho = d[DOTBITS+0];
+    // Simple solid-filled dots:
+    4'd15:  begin ho = regular_hit; color=white; end                  // Simple dots.
     endcase
   end
 
@@ -171,7 +188,7 @@ module gems #(
     3'd4:   altcolor = (delta[9:4] & r2[9:4]);  // Formerly used for mode1 altcolor.
     3'd5:   altcolor = {4'b0000,delta[9:8]};    // Simple blues.
     3'd6:   altcolor = (delta[9:8] + r);        // Purple/blue/green coarse shimmery waves.
-    3'd7:   altcolor = {delta[9:6],2'b00};
+    3'd7:   altcolor = {delta[9:8],2'b00,delta[7:6]}; // Red/Blue/Magenta... Well, maybe?
     endcase
   end
 
@@ -190,12 +207,6 @@ module gems #(
   //   // (mode==1) ? (h[0]^v[0] ? 0 : (d < r*r)) : // Fuzzing, but just meh.
   //   // (mode==9) ? (checkerboard ? 1 : (d < r2)) : // Smooth baubles vs. normal. Nice and relaxed.
   
-  wire [9:0] delta = d + r2; // Subtracting is nice, but so is adding and other logical ops.
-  wire [5:0] color = hvc;
-
-  wire [5:0] white = 6'b11_11_11;
-
-  wire sheen = (hc[DOTBITS-1:2]==4'b101 && vc[DOTBITS-1:2]==4'b101);// ||
                //(hc[DOTBITS-1:4]==delta[2:1] && vc[DOTBITS-1:4]==delta[2:1] && (hc[0] ^ vc[0]));
 
   // wire [5:0] altcolor = 
@@ -222,7 +233,9 @@ module gems #(
   // // mode15 NO
 
   assign rgb = 
-    sheen ? white :
-    hit ? (delta[9:6]+color) : altcolor;  //(dithery & 6'b01_01_01);
+    fmode==15 ? (hit?color:0) :
+    sheen     ? white :
+    hit       ? (delta[9:6]+color) :
+                altcolor;  //(dithery & 6'b01_01_01);
 
 endmodule
