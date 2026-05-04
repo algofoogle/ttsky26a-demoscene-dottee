@@ -222,11 +222,16 @@ module tt_um_algofoogle_dottee(
 
   wire gem_hit;
 
+  wire [9:0] vgems = v+counter+32;
+
+  wire hstagger = vgems[6]; // Half offset alternate rows of gems?
+
   gems #(.DOTBITS(6)) gems1(
-    .h(h),
+    .h(hstagger ? h+32 : h),
     .v(v+counter),
     .counter(logo_revealed ? ~(counter+256) : 0), // Start animating dots after the logo has been fully-revealed.
-    .mode(gem_mode),
+    .fmode(gem_mode),
+    .bmode(0),
     .hit(gem_hit),
     .rgb(rgb_gems)
   );
@@ -240,7 +245,7 @@ module tt_um_algofoogle_dottee(
 `ifdef DEBUG_GEM_MODE_SHOW
   // gem_mode displayed as 4 binary bits (MSB first) in bottom-right screen corner:
   wire debug_gem_mode_en = (v[9:3] == (480-8)>>3) && (h>=(640-32));
-  wire debug_gem_mode_p = gem_mode[h[4:3]]; // "Pixels" are 8-wide and there's 4 of them.
+  wire debug_gem_mode_p = gem_mode[~h[4:3]]; // "Pixels" are 8-wide and there's 4 of them.
 `endif//DEBUG_GEM_MODE_UI
 
   wire in_logo_shade = ~logo_gone && (

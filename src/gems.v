@@ -102,7 +102,8 @@ module gems #(
   input [9:0] h,
   input [9:0] v,
   input [9:0] counter,
-  input [3:0] mode,
+  input [3:0] fmode, // Front effect mode.
+  input [2:0] bmode, // Background effect mode.
   output [5:0] rgb,
   output hit
 );
@@ -135,18 +136,59 @@ module gems #(
 
   wire checkerboard = hc[6]^vc[6];
 
-  assign hit = 
-    (mode==0) ? (d < r2) : // Normal combo.
-    (mode==1) ? (h[0]^v[0] ? 0 : (d < r*r)) : // Fuzzing, but just meh.
-    (mode==2) ? 1 : // Smooth baubles.
-    (mode==3) ? (d[10]^d[7]) : // Good quadrant whipple -- Also good in blue.
-    (mode==4) ? r[3] :
-    (mode==5) ? ((d < r2) | d[10]) : // Nicer BG with standard baubles.
-    (mode==6) ? (checkerboard ? 1 : d[7]) : // Mix of quadrants and smooth baubles. A bit dizzying.
-    (mode==7) ? (checkerboard ? (d < r2) : 0) :
-    (mode==8) ? (checkerboard ? (d[10]^d[7]) : (d < r2)) : // Quadrant whipple vs. normal. Pretty, if busy.
-    (mode==9) ? (checkerboard ? 1 : (d < r2)) : // Smooth baubles vs. normal. Nice and relaxed.
-    /*10..15*/  d[20-mode];
+  wire regular_hit = (d < r2);
+
+  reg ho;
+  assign hit = ho;
+  always @(*) begin
+    case (fmode)
+    4'd0:   ho = 0;
+    4'd1:   ho = 1;                                         // This effect used to be mode2
+    4'd2:   ho = regular_hit;                               // This effect used to be mode0
+    4'd3:   ho = (d[10]^d[7]);
+    4'd4:   ho = r[3];
+    4'd5:   ho = ((d < r2) | d[10]);
+    4'd6:   ho = (checkerboard ? 1 : d[7]);
+    4'd7:   ho = (checkerboard ? (d < r2) : 0);
+    4'd8:   ho = (checkerboard ? (d[10]^d[7]) : (d < r2));
+    4'd9:   ho = 0;
+    4'd10:  ho = d[10];
+    4'd11:  ho = d[9];
+    4'd12:  ho = d[8];
+    4'd13:  ho = d[7];
+    4'd14:  ho = d[6];
+    4'd15:  ho = 0;                                         // UNUSED.
+    endcase
+  end
+
+  reg [5:0] altcolor;
+  always @(*) begin
+    case (bmode)
+    3'd0:   altcolor = 0;                       // Black.
+    3'd1:   altcolor = (delta[9:4]);            // Original baubles.
+    3'd2:   altcolor = (delta[9:4] &  r[9:4]);  // Dark blue shimmer.
+    3'd3:   altcolor = (delta[9:4] &  d[9:4]);  // Nice darker read/yellow/green shimmer radials.
+    3'd4:   altcolor = (delta[9:4] & r2[9:4]);  // Formerly used for mode1 altcolor.
+    3'd5:   altcolor = {4'b0000,delta[9:8]};    // Simple blues.
+    3'd6:   altcolor = (delta[9:8] + r);        // Purple/blue/green coarse shimmery waves.
+    3'd7:   altcolor = {delta[9:6],2'b00};
+    endcase
+  end
+
+  // assign hit = 
+  //   (mode==0) ? regular_hit : // Normal combo.
+  //   (mode==1) ? regular_hit :
+  //   (mode==2) ? 1 : // Smooth baubles.
+  //   (mode==3) ? (d[10]^d[7]) : // Good quadrant whipple -- Also good in blue.
+  //   (mode==4) ? r[3] :
+  //   (mode==5) ? ((d < r2) | d[10]) : // Nicer BG with standard baubles.
+  //   (mode==6) ? (checkerboard ? 1 : d[7]) : // Mix of quadrants and smooth baubles. A bit dizzying.
+  //   (mode==7) ? (checkerboard ? (d < r2) : 0) :
+  //   (mode==8) ? (checkerboard ? (d[10]^d[7]) : (d < r2)) : // Quadrant whipple vs. normal. Pretty, if busy.
+  //   (mode==9) ? regular_hit :
+  //   /*10..15*/  d[20-mode];
+  //   // (mode==1) ? (h[0]^v[0] ? 0 : (d < r*r)) : // Fuzzing, but just meh.
+  //   // (mode==9) ? (checkerboard ? 1 : (d < r2)) : // Smooth baubles vs. normal. Nice and relaxed.
   
   wire [9:0] delta = d + r2; // Subtracting is nice, but so is adding and other logical ops.
   wire [5:0] color = hvc;
@@ -156,7 +198,28 @@ module gems #(
   wire sheen = (hc[DOTBITS-1:2]==4'b101 && vc[DOTBITS-1:2]==4'b101);// ||
                //(hc[DOTBITS-1:4]==delta[2:1] && vc[DOTBITS-1:4]==delta[2:1] && (hc[0] ^ vc[0]));
 
-  wire [5:0] altcolor = delta[9:4]; // [9:8] also gives nice blues, and +r is interesting. // &d[9:4] nice anti-tones. // &hvc[9:4] // &counter[9:4] or r or dist2
+  // wire [5:0] altcolor = 
+  //   // (mode==1) ? (delta[9:4] &   d[9:4]) : // Nice darker read/yellow/green shimmer radials.
+  //   (mode==1) ? (delta[9:4] & r2[9:4]) : // Nice darker read/yellow/green shimmer radials.
+
+  //   // (mode==9) ? (delta[9:4] & counter[9:4]) : // Lots of different BG variations that emphasize the baubles.
+  //   // (mode==9) ? (delta[9:4] & r[9:4]) : // Shimmery dark blue BG pattern really shows off the bright baubles! Nice :)
+  //   (mode==9) ? (delta[9:8] + r) : // Purple/blue/green coarse shimmery waves.
+  //               // (delta[9:4]); // [9:8] also gives nice blues, and +r is interesting. // &d[9:4] nice anti-tones. // &hvc[9:4] // &counter[9:4] or r or dist2
+  //               (delta[9:4] & r[9:4]); // [9:8] also gives nice blues, and +r is interesting. // &d[9:4] nice anti-tones. // &hvc[9:4] // &counter[9:4] or r or dist2
+
+  // // fmode=3, bmode=2    mode3hit + mode3altcolor((delta[9:4] & r[9:4])) is pretty circle shapes! YES.
+  // // mode4 meh.
+  // // mode5 not bad (circles in traps).
+  // // mode6 NO GOOD
+  // // mode7 shows alternate columns of baubles on dark blue BG.
+  // // mode8 no good
+  // // mode10 is JUST the traps.
+  // // mode11 is a nice simple version of mode3. "Compass holes"
+  // // mode12 is mode11, slightly more complex
+  // // mode13 very similar to mode3??
+  // // mode14 higher-freq
+  // // mode15 NO
 
   assign rgb = 
     sheen ? white :
