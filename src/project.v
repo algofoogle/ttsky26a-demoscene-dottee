@@ -7,6 +7,8 @@
 
 // // `define DEBUG_GATES   // Gate certain functions using ui_in.
 // `define DEBUG_BAR     // Show the progress bar.
+// `define DEBUG_GEM_MODE_SHOW
+// `define DEBUG_GEM_MODE_UI
 // // For debugging, optionally constrain demo frame_counter to a given timeframe:
 // // Short initial delay, loop early:
 // `define DEBUG_TSTART  ( 2*60)
@@ -84,7 +86,13 @@ module tt_um_algofoogle_dottee(
   wire en_counter = 1;
 `endif
 
-  wire [3:0] gem_mode_ui = ui_in[7:4];
+
+  wire [3:0] gem_mode;
+`ifdef DEBUG_GEM_MODE_UI
+  assign gem_mode = ui_in[7:4]; // User inputs select gem mode.
+`else
+  assign gem_mode = frame_counter[11:8]; // Show each gem mode for ~4 seconds.
+`endif
 
   wire reset = ~rst_n;
 
@@ -212,11 +220,14 @@ module tt_um_algofoogle_dottee(
     .logo_hit(logo_hit)
   );
 
+  wire gem_hit;
+
   gems #(.DOTBITS(6)) gems1(
     .h(h),
     .v(v+counter),
     .counter(logo_revealed ? ~(counter+256) : 0), // Start animating dots after the logo has been fully-revealed.
-    .mode(gem_mode_ui),
+    .mode(gem_mode),
+    .hit(gem_hit),
     .rgb(rgb_gems)
   );
 
@@ -226,12 +237,21 @@ module tt_um_algofoogle_dottee(
   wire debug_progress = (frame_counter[11:3]>=h);
 `endif//DEBUG
 
+`ifdef DEBUG_GEM_MODE_SHOW
+  // gem_mode displayed as 4 binary bits (MSB first) in bottom-right screen corner:
+  wire debug_gem_mode_en = (v[9:3] == (480-8)>>3) && (h>=(640-32));
+  wire debug_gem_mode_p = gem_mode[h[4:3]]; // "Pixels" are 8-wide and there's 4 of them.
+`endif//DEBUG_GEM_MODE_UI
+
   wire in_logo_shade = ~logo_gone && (
     ((v[8:5] == 4 || v[8:5] == 10) && (fuzz)) ||
     ((v[8:5] >= 5 && v[8:5] <= 9) && (tfuzz))
   );
 
   wire [5:0] rgb_unblanked = 
+`ifdef DEBUG_GEM_MODE_SHOW
+    (debug_gem_mode_en) ? {6{debug_gem_mode_p}} :
+`endif//DEBUG_GEM_MODE_SHOW
 `ifdef DEBUG_BAR
     (debug_bar_en && (debug_limit || debug_progress)) ? {6{fuzz}} :
 `endif//DEBUG_BAR
