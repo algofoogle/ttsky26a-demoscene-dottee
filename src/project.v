@@ -17,6 +17,8 @@
 // // // Watch the logo dissove & flash:
 // // `define DEBUG_TSTART  (16*60)
 // // `define DEBUG_TSTOP   (18*60) 
+// `define SPIN_LOGO
+// `define SIMPLE_LOGO_REVEAL
 
 // // `define DEBUG_SLOW    5
 
@@ -194,8 +196,6 @@ module tt_um_algofoogle_dottee(
 
   wire [5:0] rgb_gems;
 
-  wire logo_hit;
-
   wire logo_gone   = frame_counter>=12'd1024;
   wire logo_en     = frame_counter>=12'd384 && !logo_gone;    // Logo visible from 00:06.4 to 00:17.1
   wire shatter_in  = frame_counter[9:5]==5'b01100;
@@ -207,18 +207,83 @@ module tt_um_algofoogle_dottee(
     shatter_in  ? {5'd0,~frame_counter[4:0]} :
     shatter_out ? {5'd0, frame_counter[4:0]} : 0;
 
+`ifdef SPIN_LOGO
+  // Logic for handling logo spin (inc. colour):
+  reg [2:0] logo_spin; // False reg.
+  reg logo_reverse; // False reg.
+  always @(*) begin
+    case (frame_counter[5:2])
+      4'd0:  begin logo_reverse=0; logo_spin=0; end
+      4'd1:  begin logo_reverse=0; logo_spin=1; end
+      4'd2:  begin logo_reverse=0; logo_spin=2; end
+      4'd3:  begin logo_reverse=0; logo_spin=3; end
+      4'd4:  begin logo_reverse=0; logo_spin=4; end
+      4'd5:  begin logo_reverse=1; logo_spin=3; end
+      4'd6:  begin logo_reverse=1; logo_spin=2; end
+      4'd7:  begin logo_reverse=1; logo_spin=1; end
+      4'd8:  begin logo_reverse=1; logo_spin=0; end
+      4'd9:  begin logo_reverse=1; logo_spin=1; end
+      4'd10: begin logo_reverse=1; logo_spin=2; end
+      4'd11: begin logo_reverse=1; logo_spin=3; end
+      4'd12: begin logo_reverse=0; logo_spin=4; end
+      4'd13: begin logo_reverse=0; logo_spin=3; end
+      4'd14: begin logo_reverse=0; logo_spin=2; end
+      4'd15: begin logo_reverse=0; logo_spin=1; end
+    endcase
+  end
+
+  // wire [11:0] spin_delayed = frame_counter-11'b00011010000;
+  wire [9:0] logo_hspin =
+    (logo_reverse) ?  (((640-h)^logo_shatter) << logo_spin) :
+                      ((h^logo_shatter) << logo_spin);
+  wire in_tt_logo = h>=(320-64) && h<(320+64);
+
+  wire [2:0] lst = 5-logo_spin;
+  wire [5:0] logo_color =
+    (logo_spin==0 || !in_tt_logo) ? ~logo_shatter[5:0] :
+    logo_reverse  ? (tfuzz ? 6'b10_11_11 : 6'b01_10_10) :
+    tfuzz         ? 6'b01_01_01 :
+                    { 2'b00,
+                      lst[2], &lst[1:0],
+                      |lst[2:1], (|lst[2:1])^lst[0]
+                    };
+
+`else
+  // Regular non-spinning logo colour:
   wire [5:0] logo_color = ~logo_shatter[5:0];
 
+`endif//SPIN_LOGO
+
   // wire [9:0] logo_bounce = (counter[9:5]<=5'b10000) ? 0 : (1<<( counter[3] ? ~counter[2:0] : counter[2:0] ));
+  wire logo_hit_raw;
+
+`ifdef SIMPLE_LOGO_REVEAL
+  wire [9:0] hlogo = h;
+`else
+  wire [9:0] hlogo = h^logo_shatter;
+`endif//SIMPLE_LOGO_REVEAL
 
   dottee_logo logo(
     .clk(clk),
     .reset(reset),
     .counter(counter),
-    .h(h^logo_shatter),
+    .realh(hlogo), // Drives internal state machines.
     .v((v^logo_shatter)),// - logo_bounce),
-    .logo_hit(logo_hit)
+`ifdef SPIN_LOGO
+    .h(in_tt_logo ? (logo_hspin+320-(320 << logo_spin)) : hlogo),
+    .tt_only(in_tt_logo),
+`else
+    .h(hlogo),
+    .tt_only(0),
+`endif//SPIN_LOGO
+    .logo_hit(logo_hit_raw)
   );
+
+`ifdef SPIN_LOGO
+  wire logo_hit = logo_hit_raw && (~in_tt_logo || (h>=(320-(64>>logo_spin)) && h<(320+(64>>logo_spin))));
+`else
+  wire logo_hit = logo_hit_raw;
+`endif
 
   wire gem_hit;
 

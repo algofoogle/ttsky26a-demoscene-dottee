@@ -9,9 +9,11 @@ module dottee_logo #(
 ) (
     input clk,
     input reset,
+    input [9:0] realh, // Drives internal state machines.
     input [9:0] h,
     input [9:0] v,
     input [9:0] counter,
+    input tt_only,
     output logo_hit
 );
   localparam THICKNESS = 16;
@@ -26,18 +28,18 @@ module dottee_logo #(
 
   //NOTE: If it helps with optimisation, 1st circle_start can be as early as 'd608 ('b10_0110_0000), and 2nd can be as late as 'd768 ('b11_0000_0000).
   // ...may not make much difference using == operator anyway; they just go into simple bitwise operators?
-  wire circle_outer_start = (h==CIRCLE_OUTER_TRIGGER); 
-  wire circle_inner_start = (h==CIRCLE_INNER_TRIGGER);
+  wire circle_outer_start = (realh==CIRCLE_OUTER_TRIGGER);
+  wire circle_inner_start = (realh==CIRCLE_INNER_TRIGGER);
   wire circle_start = circle_outer_start || circle_inner_start;
 `ifdef LOGO_ANIM
   wire [9:0] counter_delayed = (counter<START_DELAY) ? 0 : counter-START_DELAY;
   wire grow_limit = (counter_delayed>=53);
   wire [5:0] circle_radius =
-    (h >= CIRCLE_INNER_TRIGGER) ? (grow_limit ? circle_inner_radius : counter_delayed) // Animated inner radius.
+    (realh >= CIRCLE_INNER_TRIGGER) ? (grow_limit ? circle_inner_radius : counter_delayed) // Animated inner radius.
                                 : circle_outer_radius;
 `else
   wire [5:0] circle_radius =
-    (h >= CIRCLE_INNER_TRIGGER) ? circle_inner_radius
+    (realh >= CIRCLE_INNER_TRIGGER) ? circle_inner_radius
                                 : circle_outer_radius;
 `endif//LOGO_ANIM
 
@@ -61,7 +63,7 @@ module dottee_logo #(
   always @(posedge clk) begin
     if (reset)
       circle_outer_edge <= 0;
-    else if (h==10'd700)
+    else if (realh==10'd700)
       circle_outer_edge <= circle_edge;
   end
 
@@ -110,7 +112,7 @@ module dottee_logo #(
   wire in_logo = (logo_upper_half || logo_lower_half) && side_clip;
 
   // Are we in specifically the cell where the TT logo is rendered?
-  wire in_tt_logo = (h[9:8]==2'b01);
+  wire in_tt_logo = (h[9:7]==3'b010);
 
   wire inclusions = vertical_reveal && in_outer_circle && (
     (h<(32+THICKNESS)) || // "D" left bar. Would <=40 or <=42 be more efficient?
@@ -141,6 +143,6 @@ module dottee_logo #(
   wire overlaid = vertical_reveal && in_outer_circle &&
     (cvo>(128-THICKNESS/2) && cvo<(128+THICKNESS/2) && cho[9:7]>=3); // Middle bar for both "e"s.
 
-  assign logo_hit = in_logo && ((in_circle || inclusions) && ~exclusions || overlaid);
+  assign logo_hit = in_logo && ((in_circle || inclusions) && ~exclusions || overlaid) && (in_tt_logo || !tt_only);
 
 endmodule
