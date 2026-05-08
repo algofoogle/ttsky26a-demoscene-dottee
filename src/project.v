@@ -9,6 +9,7 @@
 // `define DEBUG_BAR     // Show the progress bar.
 // `define DEBUG_GEM_MODE_SHOW
 // `define DEBUG_GEM_MODE_UI
+// `define DEBUG_DAC
 // // For debugging, optionally constrain demo frame_counter to a given timeframe:
 // // Short initial delay, loop early:
 // `define DEBUG_TSTART  ( 2*60)
@@ -338,6 +339,9 @@ module tt_um_algofoogle_dottee(
   );
 
   wire [5:0] rgb_unblanked = 
+`ifdef DEBUG_DAC
+    (h>=10'd544) ? {2'b00,{2{dac_out}}, 2'b00} :
+`endif
 `ifdef DEBUG_GEM_MODE_SHOW
     (debug_gem_mode_en) ? {6{debug_gem_mode_p}} :
 `endif//DEBUG_GEM_MODE_SHOW

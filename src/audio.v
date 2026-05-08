@@ -115,8 +115,23 @@ module audio #(
         pinc = pinc << 1; // Bump up an extra octave.
     end
 
+    reg [B+SUB:0] p2; // False reg.
+    always @(*) begin
+        p2 = 0;
+        casez(frame_counter[7:5])
+        3'd0: p2 = PG;
+        3'd1: p2 = PG;
+        3'd2: p2 = PC;
+        3'd3: p2 = PC;
+        3'd4: p2 = PAs;
+        3'd5: p2 = PAs;
+        3'd6: p2 = PF;
+        3'd7: p2 = PF;
+        endcase
+    end
 
-    wire [B:0] phase;
+
+    wire [B:0] phase1;
     phase_acc #(
         .B(B+1), // Extra bit is sign for wave folding.
         .SUB(SUB)
@@ -125,13 +140,51 @@ module audio #(
         .reset(reset),
         .trigger(sample_clk), // Go high for 1 clk whenever we must accumulate another phase increment.
         .inc(pinc),
-        .sample_out(phase)
+        .sample_out(phase1)
+    );
+
+    wire [B:0] phase2;
+    phase_acc #(
+        .B(B+1), // Extra bit is sign for wave folding.
+        .SUB(SUB)
+    ) v2 (
+        .clk(clk),
+        .reset(reset),
+        .trigger(sample_clk), // Go high for 1 clk whenever we must accumulate another phase increment.
+        .inc(p2),
+        .sample_out(phase2)
     );
 
     // Generate a signed triangle wave, by folding the phase sawtooth ramp:
-    wire signed [B-1:0] tr_sample = (({B{phase[B]}} ^ phase[B-1:0]) + (1<<(B-1))); //NOTE: midpoint bias added for making this signed. Can we avoid that?
+    wire signed [B-1:0] tr_sample = (({B{phase1[B]}} ^ phase1[B-1:0]) + (1<<(B-1))); //NOTE: midpoint bias added for making this signed. Can we avoid that?
+    // Generate a signed square wave from the phase:
+    wire signed [B-1:0] sq_sample = ({B{phase1[B]}} ^ (1<<(B-1)));
 
-    wire signed [B-1:0] sample = tr_sample; //mixed_sample[B:1];
+    wire signed [B-1:0] bass_sq = ({B{phase2[B]}} ^ (1<<(B-1)));
+
+    // Exponential attenuation factor:
+    wire [2:0] exp_atten = frame_counter[3:1]; //[3:1] applied to both samples gets some really interesting overtones/twinkles.
+
+    // Attenuates a signed sample by a given attenuation factor (right-shift amount):
+    function signed [B-1:0] attenuated_sample;
+        input signed [B-1:0] sample;
+        input [2:0] afactor;
+        begin
+            if (afactor>=B)
+                attenuated_sample = 0; // Mute.
+            else
+                attenuated_sample = sample >>> afactor;
+        end
+    endfunction
+
+    // Average mixing of the two samples:
+    wire signed [B:0] mixer = 
+        attenuated_sample(tr_sample, exp_atten) +
+        // (attenuated_sample(sq_sample>>>1, exp_atten)) +
+        (bass_sq>>2) +
+        0
+        ; // Sort of pan pipe effect at Q5.9 when exp_atten is only fc[1:0].
+    wire signed [B-1:0] sample = mixer[B:1];
 
     sigmadelta_dac #(.B(B)) dac(
         .clk(clk),
