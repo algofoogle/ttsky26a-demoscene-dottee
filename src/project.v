@@ -5,6 +5,23 @@
 
 `default_nettype none
 
+// // `define DEBUG_GATES   // Gate certain functions using ui_in.
+// `define DEBUG_BAR     // Show the progress bar.
+// `define DEBUG_GEM_MODE_SHOW
+// `define DEBUG_GEM_MODE_UI
+// // For debugging, optionally constrain demo frame_counter to a given timeframe:
+// // Short initial delay, loop early:
+// `define DEBUG_TSTART  ( 2*60)
+// `define DEBUG_TSTOP   (20*60) 
+
+// // // Watch the logo dissove & flash:
+// // `define DEBUG_TSTART  (16*60)
+// // `define DEBUG_TSTOP   (18*60) 
+// `define SPIN_LOGO
+// `define SIMPLE_LOGO_REVEAL
+
+// // `define DEBUG_SLOW    5
+
 module tt_um_algofoogle_dottee(
   input  wire [7:0] ui_in,    // Dedicated inputs
   output wire [7:0] uo_out,   // Dedicated outputs
@@ -18,6 +35,49 @@ module tt_um_algofoogle_dottee(
 
   localparam DOTBITS = 6; //NOTE: Increasing to 6 gives quadrant colours, like gems.
 
+  // // Creates an attenuated sound during the logo that sounds like a drum/hat:
+  // reg [3:0] pwm;
+  // always @(posedge clk) pwm <= (~rst_n) ? 0 : pwm + 1;
+  // wire speaker = //0;
+  //   full_color  ? (rgb_unblanked[3]) & (pwm > counter[3:0]) :
+  //   logo_en     ? (rgb_unblanked[0] | ( counter[6] & ~vsync )) & (pwm > counter[3:0]):
+  //                 (rgb_unblanked[2] | ( counter[5] & ~vsync )) & (pwm > counter[3:0]) & (pwm[0]);// & pwm[1]);
+
+  wire dac_out;
+  wire speaker = dac_out;
+
+  wire line_end = (h==799); //SMELL: Make hvsync_generator supply this.
+
+  audio #(.B(5), .SUB(9)) synth (
+    .clk(clk),
+    .reset(reset),
+    .frame_counter(frame_counter),
+    .sample_clk(line_end),
+    .dac_out(dac_out)
+  );
+
+  // reg speaker;
+  // always @(*) begin
+  //   case (ui_in[3:0])
+  //   4'b0000: speaker = rgb_unblanked[0]; //RGB_reg[5]; // B[0]
+  //   4'b0001: speaker = rgb_unblanked[1]; //RGB_reg[2]; // B[1]
+  //   4'b0010: speaker = rgb_unblanked[2]; //RGB_reg[4]; // G[0]
+  //   4'b0011: speaker = rgb_unblanked[3]; //RGB_reg[1]; // G[1] // Interesting wobble beneath dominant 60Hz.
+  //   4'b0100: speaker = rgb_unblanked[4]; //RGB_reg[3]; // R[0] // Lasery sound under annoying 60Hz.
+  //   4'b0101: speaker = rgb_unblanked[5]; //RGB_reg[0]; // R[1] // Dalek under 60Hz.
+  //   4'b0110: speaker = rgb_unblanked[0] & rgb_unblanked[3];
+  //   4'b0111: speaker = rgb_unblanked[0] | rgb_unblanked[3]; // Annoying 60Hz buzz.
+  //   4'b1000: speaker = rgb_unblanked[0] ^ rgb_unblanked[1];
+  //   4'b1001: speaker = rgb_unblanked[0] ^ rgb_unblanked[2];
+  //   4'b1010: speaker = rgb_unblanked[0] ^ rgb_unblanked[3];
+  //   4'b1011: speaker = rgb_unblanked[0] ^ rgb_unblanked[4];
+  //   4'b1100: speaker = v[4];
+  //   4'b1101: speaker = v[5];
+  //   4'b1110: speaker = v[6];
+  //   4'b1111: speaker = v[7];
+  //   endcase
+  // end
+
   // VGA signals
   wire hsync;
   wire vsync;
@@ -26,15 +86,40 @@ module tt_um_algofoogle_dottee(
   wire [1:0] B;
   wire video_active;
   wire [9:0] h;
-  // + (v[6]<<5) // Worm
-  // + (v>>5) // Minor shift makes it more interesting.
   wire [9:0] v;
 
-  // TinyVGA PMOD
-  assign uo_out = {hsync, B[0], G[0], R[0], vsync, B[1], G[1], R[1]};
+`ifdef DEBUG_GATES
+  wire en_r = ui_in[0];
+  wire en_g = ui_in[1];
+  wire en_b = ui_in[2];
+  wire en_counter = ui_in[3];
+`else
+  wire en_r = 1;
+  wire en_g = 1;
+  wire en_b = 1;
+  wire en_counter = 1;
+`endif
+
+
+  wire [3:0] gem_mode;
+`ifdef DEBUG_GEM_MODE_UI
+  assign gem_mode = ui_in[7:4]; // User inputs select gem mode.
+`else
+  assign gem_mode = frame_counter[11:8]; // Show each gem mode for ~4 seconds.
+`endif
+
+  // wire [2:0] gem_bmode = ui_in[6:4];
+
+  wire reset = ~rst_n;
+
+  // TinyVGA PMOD with registered outputs
+  // NOTE: Only colours are registered, since hsync/vsync jitter is unlikely.
+  reg [5:0] RGB_reg;
+  always @(posedge clk) RGB_reg <= {B[0], G[0], R[0], B[1], G[1], R[1]};
+  assign uo_out = {hsync, RGB_reg[5:3], vsync, RGB_reg[2:0]};
 
   // TT Audio PMOD
-  assign uio_out[7] = 0;//(&counter[0:0]) ? hit : (delta[7] ^ r[4]); // Weird motor sound: d[4] ^ r[1]; Also try d[9]
+  assign uio_out[7] = speaker;
   assign uio_oe[7] = 1;
 
   // Unused outputs assigned to 0.
@@ -44,11 +129,12 @@ module tt_um_algofoogle_dottee(
   // Suppress unused signals warning
   wire _unused_ok = &{ena, ui_in, uio_in};
 
-  reg [9:0] counter;
+  reg [11:0] frame_counter; // 4096 frames ~= 68 seconds.
+  wire [9:0] counter = en_counter ? frame_counter[9:0] : 0;
 
   hvsync_generator hvsync_gen(
     .clk(clk),
-    .reset(~rst_n),
+    .reset(reset),
     .hsync(hsync),
     .vsync(vsync),
     .display_on(video_active),
@@ -56,257 +142,253 @@ module tt_um_algofoogle_dottee(
     .vpos(v)
   );
 
-  wire [5:0] rgb;
-  wire [5:0] rgb1;
-  wire [5:0] rgb2;
+  wire [5:0] rgb_gate = { {2{en_r}}, {2{en_g}}, {2{en_b}} };
 
-  //assign rgb = (0) ? rgb1 : rgb2;//rgb2<<(rgb1>>2);
-  // Also pretty (but currently for static BG, no motion):
-  //assign rgb = ((((h-16)&9'b100000)^((v-16)&9'b100000))&&(h[6]^v[6])) ? rgb1 : rgb2;//rgb2<<(rgb1>>2); // Can make fish scales with dense half-circles.
+  wire fuzz = h[0]^v[0];
+  wire tfuzz = fuzz^counter[0];
 
-  wire ndy;
-  not_done_yet message(.hcount(h), .vcount(v), .pixel(ndy));
-  assign rgb = 
-    (v[8:7]==2'b01) ? {6{ndy}} :
-    rgb1 & ({6{(v[8:7]!=2'b01)& (h[2]^v[2])& (h[0]^v[0])}});
+  reg [5:0] rgb_slide;
+  wire [1:0] simples = rgb_gems[5:4];
+  always @(*) begin
+    case (counter[4] ? counter[3:0] : ~counter[3:0])
+    4'd0: rgb_slide = {5'd0,simples[1]&tfuzz};
+    4'd1: rgb_slide = {5'd0,simples[1]&tfuzz};
+    4'd2: rgb_slide = {5'd0,simples[1]&tfuzz};
+    4'd3: rgb_slide = {5'd0,simples[1]&tfuzz};
+    4'd4: rgb_slide = {5'd0,simples[1]&tfuzz};
+    4'd5: rgb_slide = {5'd0,simples[1]&tfuzz};
+    4'd6: rgb_slide = {5'd0,simples[1]&tfuzz};
+    4'd7: rgb_slide = {5'd0,simples[1]};
+    4'd8: rgb_slide = {5'd0,simples[1]};
+    4'd9: rgb_slide = {5'd0,simples[1]};
+    4'd10: rgb_slide = {5'd0,simples[1]};
+    4'd11: rgb_slide = {5'd0,simples[1]};
+    4'd12: rgb_slide = {4'd0,simples};
+    4'd13: rgb_slide = {4'd0,simples};
+    4'd14: rgb_slide = {4'd0,simples};
+    4'd15: rgb_slide = {2'd0,simples[1:0],simples|2'b1};
+    endcase
+  end
 
-  reg [19:0] hlut;
+  wire [9:0] hvdelta = (h-(counter<<5)+10'b1000000000)+(v>>1);
+  wire start_diag_wipe = frame_counter >= 12'b0011111_10000;
+  wire within_whiteout = frame_counter >= 12'b0100000_00000 && (frame_counter < 12'b0100000_10000);
+  wire diag_wipe = (hvdelta[9:7] == 0) && (start_diag_wipe) && (frame_counter < 12'b0100000_01100);//counter[9:6]);
+  wire full_color = (frame_counter >= 12'b0100000_10000);
 
-  background_generator #(.DOTBITS(6)) bgen(
-    .h(h),//-counter),
-    .v(v),
-    .counter(counter),
-    .rgb(rgb1)
-  );
-
-  background_generator #(.DOTBITS(6)) bgen2(
-    .h(hlut[11:2]+32-counter),
-    .v(v+32),
-    .counter(counter),
-    .rgb(rgb2)
-  );
-
-  assign R = video_active ? rgb[5:4] : 2'b00;
-  assign G = video_active ? rgb[3:2] : 2'b00;
-  assign B = video_active ? rgb[1:0] : 2'b00;
-
-  // wire [9:0] dist2 = $signed(h[5:0]) * $signed(v[5:0]);
-
-  // wire [9:0] comp = $signed(counter*counter)+v+h*v; //$signed(h[9:3]*h[9:3]+counter);
-
-  // wire hit2 = dist2 < comp;
-
-  // wire [5:0] dithery = (counter+{h[3:2],h[5:4],h[9:6]}) & {6{hit2}} & {6{video_active}};
-
-  always @(posedge clk) begin
-    if (h == 0 || ~rst_n) begin
-      hlut <= 0;
+  reg [5:0] whiteout;
+  always @(*) begin
+    if (within_whiteout) begin
+      case (counter[3:0])
+      4'd0: whiteout = 6'b01_00_00;
+      4'd1: whiteout = 6'b01_01_00;
+      4'd2: whiteout = 6'b10_01_00;
+      4'd3: whiteout = 6'b10_10_00;
+      4'd4: whiteout = 6'b11_10_00;
+      4'd5: whiteout = 6'b11_11_00;
+      4'd6: whiteout = 6'b11_11_01;
+      4'd7: whiteout = 6'b11_11_11;
+      4'd8: whiteout = 6'b11_11_11;
+      4'd9: whiteout = 6'b11_11_11;
+      default: whiteout = 6'b11_11_11;
+      // 4'd10: whiteout = 6'b11_11_11;
+      // 4'd11: whiteout = 6'b11_11_11;
+      // 4'd12: whiteout = 6'b11_11_11;
+      // 4'd13: whiteout = 6'b11_11_11;
+      // 4'd14: whiteout = 6'b11_11_11;
+      // 4'd15: whiteout = 6'b11_11_11;
+      endcase
     end else begin
-      hlut <= hlut + 4;
+      whiteout = 0;
     end
   end
+
+
+  wire [5:0] rgb = rgb_gate & ((
+    (diag_wipe | full_color) ? rgb_gems : rgb_slide
+  ));
+
+  wire [5:0] rgb_gems;
+
+  wire logo_gone   = frame_counter>=12'd1024;
+  wire logo_en     = frame_counter>=12'd384 && !logo_gone;    // Logo visible from 00:06.4 to 00:17.1
+  wire shatter_in  = frame_counter[9:5]==5'b01100;
+  wire shatter_out = frame_counter[9:5]==5'b11111;
+
+  wire logo_revealed = frame_counter[11:5]>=7'b0001101;
+
+  wire [9:0] logo_shatter =
+    shatter_in  ? {5'd0,~frame_counter[4:0]} :
+    shatter_out ? {5'd0, frame_counter[4:0]} : 0;
+
+`ifdef SPIN_LOGO
+  // Logic for handling logo spin (inc. colour):
+  reg [2:0] logo_spin; // False reg.
+  reg logo_reverse; // False reg.
+  always @(*) begin
+    case (frame_counter[5:2])
+      4'd0:  begin logo_reverse=0; logo_spin=0; end
+      4'd1:  begin logo_reverse=0; logo_spin=1; end
+      4'd2:  begin logo_reverse=0; logo_spin=2; end
+      4'd3:  begin logo_reverse=0; logo_spin=3; end
+      4'd4:  begin logo_reverse=0; logo_spin=4; end
+      4'd5:  begin logo_reverse=1; logo_spin=3; end
+      4'd6:  begin logo_reverse=1; logo_spin=2; end
+      4'd7:  begin logo_reverse=1; logo_spin=1; end
+      4'd8:  begin logo_reverse=1; logo_spin=0; end
+      4'd9:  begin logo_reverse=1; logo_spin=1; end
+      4'd10: begin logo_reverse=1; logo_spin=2; end
+      4'd11: begin logo_reverse=1; logo_spin=3; end
+      4'd12: begin logo_reverse=0; logo_spin=4; end
+      4'd13: begin logo_reverse=0; logo_spin=3; end
+      4'd14: begin logo_reverse=0; logo_spin=2; end
+      4'd15: begin logo_reverse=0; logo_spin=1; end
+    endcase
+  end
+
+  // wire [11:0] spin_delayed = frame_counter-11'b00011010000;
+  wire [9:0] logo_hspin =
+    (logo_reverse) ?  (((640-h)^logo_shatter) << logo_spin) :
+                      ((h^logo_shatter) << logo_spin);
+  wire in_tt_logo = h>=(320-64) && h<(320+64);
+
+  wire [2:0] lst = 5-logo_spin;
+  wire [5:0] logo_color =
+    (logo_spin==0 || !in_tt_logo) ? ~logo_shatter[5:0] :
+    logo_reverse  ? (tfuzz ? 6'b10_11_11 : 6'b01_10_10) :
+    tfuzz         ? 6'b01_01_01 :
+                    { 2'b00,
+                      lst[2], &lst[1:0],
+                      |lst[2:1], (|lst[2:1])^lst[0]
+                    };
+
+`else
+  // Regular non-spinning logo colour:
+  wire [5:0] logo_color = ~logo_shatter[5:0];
+
+`endif//SPIN_LOGO
+
+  // wire [9:0] logo_bounce = (counter[9:5]<=5'b10000) ? 0 : (1<<( counter[3] ? ~counter[2:0] : counter[2:0] ));
+  wire logo_hit_raw;
+
+`ifdef SIMPLE_LOGO_REVEAL
+  wire [9:0] hlogo = h;
+`else
+  wire [9:0] hlogo = h^logo_shatter;
+`endif//SIMPLE_LOGO_REVEAL
+
+  dottee_logo logo(
+    .clk(clk),
+    .reset(reset),
+    .counter(counter),
+    .realh(hlogo), // Drives internal state machines.
+    .v((v^logo_shatter)),// - logo_bounce),
+`ifdef SPIN_LOGO
+    .h(in_tt_logo ? (logo_hspin+320-(320 << logo_spin)) : hlogo),
+    .tt_only(in_tt_logo),
+`else
+    .h(hlogo),
+    .tt_only(0),
+`endif//SPIN_LOGO
+    .logo_hit(logo_hit_raw)
+  );
+
+`ifdef SPIN_LOGO
+  wire logo_hit = logo_hit_raw && (~in_tt_logo || (h>=(320-(64>>logo_spin)) && h<(320+(64>>logo_spin))));
+`else
+  wire logo_hit = logo_hit_raw;
+`endif
+
+  wire gem_hit;
+
+  wire [9:0] vgems = v+counter+(1<<(DOTBITS-1));
+
+  wire hstagger = vgems[DOTBITS]; // Half offset alternate rows of gems?
+
+  wire [DOTBITS-1:0] max_radius = (1<<(DOTBITS-1));
+
+  gems #(.DOTBITS(DOTBITS)) gems1(
+    .h(hstagger ? h+(1<<(DOTBITS-1)) : h),
+    .v(v+counter),
+    .counter(logo_revealed ? ~(counter+256) : 0), // Start animating dots after the logo has been fully-revealed.
+    // .fmode(15),
+    .fmode(gem_mode),
+    // .bmode(gem_bmode),
+    .bmode(7), // 0 is black. 1 is original. 7 is blue/magenta.
+    .inr(max_radius), //NOTE: Intentionally or not, radius behaves as the absolute of a signed value??
+    .hit(gem_hit),
+    .rgb(rgb_gems)
+  );
+
+`ifdef DEBUG_BAR
+  wire debug_bar_en = v[9:3] == (480-8)>>3;
+  wire debug_limit = (h[9]);
+  wire debug_progress = (frame_counter[11:3]>=h);
+`endif//DEBUG
+
+`ifdef DEBUG_GEM_MODE_SHOW
+  // gem_mode displayed as 4 binary bits (MSB first) in bottom-right screen corner:
+  wire debug_gem_mode_en = (v[9:3] == (480-8)>>3) && (h>=(640-32));
+  wire debug_gem_mode_p = gem_mode[~h[4:3]]; // "Pixels" are 8-wide and there's 4 of them.
+`endif//DEBUG_GEM_MODE_UI
+
+  wire in_logo_shade = ~logo_gone && (
+    ((v[8:5] == 4 || v[8:5] == 10) && (fuzz)) ||
+    ((v[8:5] >= 5 && v[8:5] <= 9) && (tfuzz))
+  );
+
+  wire [5:0] rgb_unblanked = 
+`ifdef DEBUG_GEM_MODE_SHOW
+    (debug_gem_mode_en) ? {6{debug_gem_mode_p}} :
+`endif//DEBUG_GEM_MODE_SHOW
+`ifdef DEBUG_BAR
+    (debug_bar_en && (debug_limit || debug_progress)) ? {6{fuzz}} :
+`endif//DEBUG_BAR
+(
+    (logo_hit && logo_en) ? logo_color :
+    // (in_logo_shade && logo_en)      ? ((rgb>>1)&6'b01_01_01) :
+                          rgb) | whiteout;
+
+  assign {R,G,B} = (!video_active) ? 6'b00_00_00 : rgb_unblanked;
+
+
+`ifdef DEBUG_SLOW
+  reg [3:0] debug_slow;
+`endif
 
   always @(posedge vsync, negedge rst_n) begin
     if (~rst_n) begin
-      counter <= 0;
+      `ifdef DEBUG_TSTART
+      frame_counter <= `DEBUG_TSTART;
+      `else      
+      frame_counter <= 0;
+      `endif
+
+      `ifdef DEBUG_SLOW
+      debug_slow <= 0;
+    end else if (debug_slow != `DEBUG_SLOW) begin
+      debug_slow <= debug_slow + 1;
     end else begin
-      counter <= counter + 1;
+      debug_slow <= 0;
+      if (0) begin
+      `endif
+
+      `ifdef DEBUG_TSTOP
+      end else if (frame_counter==`DEBUG_TSTOP-1) begin
+        `ifdef DEBUG_TSTART
+        frame_counter <= `DEBUG_TSTART;
+        `else
+        frame_counter <= 0;
+        `endif
+      `endif
+    end else begin
+      frame_counter <= frame_counter + 1;
     end
+
+`ifdef DEBUG_SLOW
   end
+`endif
 
-
-endmodule
-
-
-module background_generator #(
-  parameter DOTBITS=6
-) (
-  input [9:0] h,
-  input [9:0] v,
-  input [9:0] counter,
-  output [5:0] rgb
-);
-
-  wire signed [9:0] dx = $signed(h[DOTBITS-1:0]);
-  wire signed [9:0] dy = $signed(v[DOTBITS-1:0]);
-
-  wire [19:0] d = dx*dx + dy*dy;
-
-  // wire [9:0] r = (counter[DOTBITS-2:0] ^ {(DOTBITS-1){counter[DOTBITS-1]}}) * ({2{hc[7]}} ^ hc[6:5]);
-
-  wire [9:0] r = (counter[DOTBITS-2:0] ^ {(DOTBITS-1){counter[DOTBITS-1]}}) + 1 + ({3{hc[8]}} ^ hc[7:5]);
-
-  wire [9:0] hc = h+(1<<(DOTBITS-1));
-  wire [9:0] vc = v+(1<<(DOTBITS-1));
-  wire [9:0] hvc = {hc[9:5]+vc[9:5],1'b0} + (counter>>0);
-
-  wire hit = d < r*r; // Also try: h[0]^v[0] ? 0 : d < r*r; and simply: 1;
-  wire [9:0] delta = d + r*r; // Subtracting is nice, but so is adding and other logical ops.
-  wire [5:0] color = hvc;
-
-  wire [5:0] white = 6'b11_11_11;
-
-  wire sheen = (hc[DOTBITS-1:2]==4'b101 && vc[DOTBITS-1:2]==4'b101);// ||
-               //(hc[DOTBITS-1:4]==delta[2:1] && vc[DOTBITS-1:4]==delta[2:1] && (hc[0] ^ vc[0]));
-
-  wire [5:0] altcolor = delta[9:4]; // [9:8] also gives nice blues, and +r is interesting. // &d[9:4] nice anti-tones. // &hvc[9:4] // &counter[9:4] or r or dist2
-
-  assign rgb = 
-    sheen ? white :
-    hit ? (delta[9:6]+color) : altcolor;  //(dithery & 6'b01_01_01);
-
-endmodule
-
-
-module not_done_yet(
-  input [9:0] hcount,
-  input [9:0] vcount,
-  output pixel
-);
-
-    localparam H_VISIBLE = 640;
-    localparam V_VISIBLE = 480;
-
-    // ------------------------------------------------------------------------
-    // Text placement
-    // 12 chars total: "NOT DONE YET"
-    // 8x8 font, no scaling
-    // ------------------------------------------------------------------------
-    localparam CHAR_W   = 8;
-    localparam CHAR_H   = 8;
-    localparam MSG_LEN  = 12;
-    localparam TEXT_W   = MSG_LEN * CHAR_W;   // 96
-    localparam TEXT_H   = CHAR_H;             // 8
-
-    localparam TEXT_X0  = (H_VISIBLE - TEXT_W) / 2;  // 272
-    localparam TEXT_Y0  = 192;
-
-    wire in_text_box =
-        (hcount >= TEXT_X0) && (hcount < TEXT_X0 + TEXT_W) &&
-        (vcount >= TEXT_Y0) && (vcount < TEXT_Y0 + TEXT_H);
-
-    wire [3:0] char_index = (hcount - TEXT_X0) >> 3;  // divide by 8
-    wire [9:0] gx = (hcount - TEXT_X0);
-    wire [9:0] gy = (vcount - TEXT_Y0);
-    wire [2:0] glyph_x    = gx[2:0];
-    wire [2:0] glyph_y    = gy[2:0];
-
-
-    reg [7:0] char_code;
-    always @(*) begin
-        case (char_index)
-            4'd0:  char_code = "N";
-            4'd1:  char_code = "O";
-            4'd2:  char_code = "T";
-            4'd3:  char_code = " ";
-            4'd4:  char_code = "D";
-            4'd5:  char_code = "O";
-            4'd6:  char_code = "N";
-            4'd7:  char_code = "E";
-            4'd8:  char_code = " ";
-            4'd9:  char_code = "Y";
-            4'd10: char_code = "E";
-            4'd11: char_code = "T";
-            default: char_code = " ";
-        endcase
-    end
-
-    // ------------------------------------------------------------------------
-    // 8x8 glyph ROM for just the letters we need
-    // Each row is 8 bits, MSB is leftmost pixel
-    // ------------------------------------------------------------------------
-    reg [7:0] glyph_row;
-    always @(*) begin
-        case (char_code)
-
-            "N": begin
-                case (glyph_y)
-                    3'd0: glyph_row = 8'b11000011;
-                    3'd1: glyph_row = 8'b11100011;
-                    3'd2: glyph_row = 8'b11110011;
-                    3'd3: glyph_row = 8'b11011011;
-                    3'd4: glyph_row = 8'b11001111;
-                    3'd5: glyph_row = 8'b11000111;
-                    3'd6: glyph_row = 8'b11000011;
-                    3'd7: glyph_row = 8'b00000000;
-                endcase
-            end
-
-            "O": begin
-                case (glyph_y)
-                    3'd0: glyph_row = 8'b00111100;
-                    3'd1: glyph_row = 8'b01100110;
-                    3'd2: glyph_row = 8'b11000011;
-                    3'd3: glyph_row = 8'b11000011;
-                    3'd4: glyph_row = 8'b11000011;
-                    3'd5: glyph_row = 8'b01100110;
-                    3'd6: glyph_row = 8'b00111100;
-                    3'd7: glyph_row = 8'b00000000;
-                endcase
-            end
-
-            "T": begin
-                case (glyph_y)
-                    3'd0: glyph_row = 8'b11111111;
-                    3'd1: glyph_row = 8'b00011000;
-                    3'd2: glyph_row = 8'b00011000;
-                    3'd3: glyph_row = 8'b00011000;
-                    3'd4: glyph_row = 8'b00011000;
-                    3'd5: glyph_row = 8'b00011000;
-                    3'd6: glyph_row = 8'b00011000;
-                    3'd7: glyph_row = 8'b00000000;
-                endcase
-            end
-
-            "D": begin
-                case (glyph_y)
-                    3'd0: glyph_row = 8'b11111100;
-                    3'd1: glyph_row = 8'b11000110;
-                    3'd2: glyph_row = 8'b11000011;
-                    3'd3: glyph_row = 8'b11000011;
-                    3'd4: glyph_row = 8'b11000011;
-                    3'd5: glyph_row = 8'b11000110;
-                    3'd6: glyph_row = 8'b11111100;
-                    3'd7: glyph_row = 8'b00000000;
-                endcase
-            end
-
-            "E": begin
-                case (glyph_y)
-                    3'd0: glyph_row = 8'b11111111;
-                    3'd1: glyph_row = 8'b11000000;
-                    3'd2: glyph_row = 8'b11000000;
-                    3'd3: glyph_row = 8'b11111100;
-                    3'd4: glyph_row = 8'b11000000;
-                    3'd5: glyph_row = 8'b11000000;
-                    3'd6: glyph_row = 8'b11111111;
-                    3'd7: glyph_row = 8'b00000000;
-                endcase
-            end
-
-            "Y": begin
-                case (glyph_y)
-                    3'd0: glyph_row = 8'b11000011;
-                    3'd1: glyph_row = 8'b01100110;
-                    3'd2: glyph_row = 8'b00111100;
-                    3'd3: glyph_row = 8'b00011000;
-                    3'd4: glyph_row = 8'b00011000;
-                    3'd5: glyph_row = 8'b00011000;
-                    3'd6: glyph_row = 8'b00011000;
-                    3'd7: glyph_row = 8'b00000000;
-                endcase
-            end
-
-            " ": begin
-                glyph_row = 8'b00000000;
-            end
-
-            default: begin
-                glyph_row = 8'b00000000;
-            end
-        endcase
-    end
-
-    assign pixel = in_text_box && glyph_row[7 - glyph_x];
+  end
 
 endmodule
