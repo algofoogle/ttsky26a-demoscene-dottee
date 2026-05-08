@@ -42,7 +42,18 @@ module tt_um_algofoogle_dottee(
     // full_color  ? (rgb_unblanked[3]) & (pwm > counter[3:0]) :
     // logo_en     ? (rgb_unblanked[0] | ( counter[6] & ~vsync )) & (pwm > counter[3:0]):
     //               (rgb_unblanked[2] | ( counter[5] & ~vsync )) & (pwm > counter[3:0]) & (pwm[0]);// & pwm[1]);
+  wire dac_out;
+  wire speaker = dac_out;
 
+  wire line_end = (h==799); //SMELL: Make hvsync_generator supply this.
+
+  audio #(.B(5), .SUB(9)) synth (
+    .clk(clk),
+    .reset(reset),
+    .frame_counter(frame_counter),
+    .sample_clk(line_end),
+    .dac_out(dac_out)
+  );
 
   // reg speaker;
   // always @(*) begin
@@ -95,6 +106,8 @@ module tt_um_algofoogle_dottee(
 `else
   assign gem_mode = frame_counter[11:8]; // Show each gem mode for ~4 seconds.
 `endif
+
+  // wire [2:0] gem_bmode = ui_in[6:4];
 
   wire reset = ~rst_n;
 

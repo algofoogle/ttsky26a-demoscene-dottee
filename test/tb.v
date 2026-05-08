@@ -49,6 +49,7 @@ module tb ();
   wire [5:0] rgb = {rr,gg,bb}; // Just used by cocotb test bench for convenient checks.
   wire hsync_n    = uo_out[7];
   wire vsync_n    = uo_out[3];
+  wire speaker    = uio_out[7];
 
 
   tt_um_algofoogle_dottee user_project (
