@@ -38,10 +38,11 @@ module tt_um_algofoogle_dottee(
   // // Creates an attenuated sound during the logo that sounds like a drum/hat:
   // reg [3:0] pwm;
   // always @(posedge clk) pwm <= (~rst_n) ? 0 : pwm + 1;
-  wire speaker = 0;
-    // full_color  ? (rgb_unblanked[3]) & (pwm > counter[3:0]) :
-    // logo_en     ? (rgb_unblanked[0] | ( counter[6] & ~vsync )) & (pwm > counter[3:0]):
-    //               (rgb_unblanked[2] | ( counter[5] & ~vsync )) & (pwm > counter[3:0]) & (pwm[0]);// & pwm[1]);
+  // wire speaker = //0;
+  //   full_color  ? (rgb_unblanked[3]) & (pwm > counter[3:0]) :
+  //   logo_en     ? (rgb_unblanked[0] | ( counter[6] & ~vsync )) & (pwm > counter[3:0]):
+  //                 (rgb_unblanked[2] | ( counter[5] & ~vsync )) & (pwm > counter[3:0]) & (pwm[0]);// & pwm[1]);
+
   wire dac_out;
   wire speaker = dac_out;
 
