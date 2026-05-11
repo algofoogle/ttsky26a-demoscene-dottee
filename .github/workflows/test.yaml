@@ -27,7 +27,7 @@ jobs:
         run: |
           cd test
           make clean
-          make
+          make FRAMES=1
           # make will return success even if the test fails, so check for failure in the results.xml
           ! grep failure results.xml
 
@@ -74,6 +74,7 @@ jobs:
           path: |
             test/frames_out/frames-rtl.tgz
             test/frames_out/frames-rtl.gif
+            test/frames_out/audio_stream.bin
 
       - name: upload waveform and test results
         if: success() || failure()

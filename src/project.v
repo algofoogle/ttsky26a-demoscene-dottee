@@ -9,18 +9,16 @@
 // `define DEBUG_BAR     // Show the progress bar.
 // `define DEBUG_GEM_MODE_SHOW
 // `define DEBUG_GEM_MODE_UI
+// `define DEBUG_DAC
 // // For debugging, optionally constrain demo frame_counter to a given timeframe:
 // // Short initial delay, loop early:
 // `define DEBUG_TSTART  ( 2*60)
 // `define DEBUG_TSTOP   (20*60) 
+// `define DEBUG_SLOW    5
 
-// // // Watch the logo dissove & flash:
-// // `define DEBUG_TSTART  (16*60)
-// // `define DEBUG_TSTOP   (18*60) 
 // `define SPIN_LOGO
 // `define SIMPLE_LOGO_REVEAL
 
-// // `define DEBUG_SLOW    5
 
 module tt_um_algofoogle_dottee(
   input  wire [7:0] ui_in,    // Dedicated inputs
@@ -34,49 +32,21 @@ module tt_um_algofoogle_dottee(
 );
 
   localparam DOTBITS = 6; //NOTE: Increasing to 6 gives quadrant colours, like gems.
+  localparam AUDIO_BITS = 5;
+  localparam AUDIO_SUB = 8;
 
-  // // Creates an attenuated sound during the logo that sounds like a drum/hat:
-  // reg [3:0] pwm;
-  // always @(posedge clk) pwm <= (~rst_n) ? 0 : pwm + 1;
-  // wire speaker = //0;
-  //   full_color  ? (rgb_unblanked[3]) & (pwm > counter[3:0]) :
-  //   logo_en     ? (rgb_unblanked[0] | ( counter[6] & ~vsync )) & (pwm > counter[3:0]):
-  //                 (rgb_unblanked[2] | ( counter[5] & ~vsync )) & (pwm > counter[3:0]) & (pwm[0]);// & pwm[1]);
-
-  wire dac_out;
+  wire dac_out; //NOTE: This is (probably) already registered, within the 'audio' module.
   wire speaker = dac_out;
 
-  wire line_end = (h==799); //SMELL: Make hvsync_generator supply this.
+  wire line_end;
 
-  audio #(.B(5), .SUB(9)) synth (
+  audio #(.B(AUDIO_BITS), .SUB(AUDIO_SUB)) synth (
     .clk(clk),
     .reset(reset),
     .frame_counter(frame_counter),
     .sample_clk(line_end),
     .dac_out(dac_out)
   );
-
-  // reg speaker;
-  // always @(*) begin
-  //   case (ui_in[3:0])
-  //   4'b0000: speaker = rgb_unblanked[0]; //RGB_reg[5]; // B[0]
-  //   4'b0001: speaker = rgb_unblanked[1]; //RGB_reg[2]; // B[1]
-  //   4'b0010: speaker = rgb_unblanked[2]; //RGB_reg[4]; // G[0]
-  //   4'b0011: speaker = rgb_unblanked[3]; //RGB_reg[1]; // G[1] // Interesting wobble beneath dominant 60Hz.
-  //   4'b0100: speaker = rgb_unblanked[4]; //RGB_reg[3]; // R[0] // Lasery sound under annoying 60Hz.
-  //   4'b0101: speaker = rgb_unblanked[5]; //RGB_reg[0]; // R[1] // Dalek under 60Hz.
-  //   4'b0110: speaker = rgb_unblanked[0] & rgb_unblanked[3];
-  //   4'b0111: speaker = rgb_unblanked[0] | rgb_unblanked[3]; // Annoying 60Hz buzz.
-  //   4'b1000: speaker = rgb_unblanked[0] ^ rgb_unblanked[1];
-  //   4'b1001: speaker = rgb_unblanked[0] ^ rgb_unblanked[2];
-  //   4'b1010: speaker = rgb_unblanked[0] ^ rgb_unblanked[3];
-  //   4'b1011: speaker = rgb_unblanked[0] ^ rgb_unblanked[4];
-  //   4'b1100: speaker = v[4];
-  //   4'b1101: speaker = v[5];
-  //   4'b1110: speaker = v[6];
-  //   4'b1111: speaker = v[7];
-  //   endcase
-  // end
 
   // VGA signals
   wire hsync;
@@ -137,9 +107,10 @@ module tt_um_algofoogle_dottee(
     .reset(reset),
     .hsync(hsync),
     .vsync(vsync),
-    .display_on(video_active),
+    .visible(video_active),
     .hpos(h),
-    .vpos(v)
+    .vpos(v),
+    .hmax(line_end)
   );
 
   wire [5:0] rgb_gate = { {2{en_r}}, {2{en_g}}, {2{en_b}} };
@@ -173,7 +144,7 @@ module tt_um_algofoogle_dottee(
   wire [9:0] hvdelta = (h-(counter<<5)+10'b1000000000)+(v>>1);
   wire start_diag_wipe = frame_counter >= 12'b0011111_10000;
   wire within_whiteout = frame_counter >= 12'b0100000_00000 && (frame_counter < 12'b0100000_10000);
-  wire diag_wipe = (hvdelta[9:7] == 0) && (start_diag_wipe) && (frame_counter < 12'b0100000_01100);//counter[9:6]);
+  wire diag_wipe = (hvdelta[9:7] == 0) && (start_diag_wipe) && (frame_counter < 12'b0100000_01100);
   wire full_color = (frame_counter >= 12'b0100000_10000);
 
   reg [5:0] whiteout;
@@ -191,18 +162,11 @@ module tt_um_algofoogle_dottee(
       4'd8: whiteout = 6'b11_11_11;
       4'd9: whiteout = 6'b11_11_11;
       default: whiteout = 6'b11_11_11;
-      // 4'd10: whiteout = 6'b11_11_11;
-      // 4'd11: whiteout = 6'b11_11_11;
-      // 4'd12: whiteout = 6'b11_11_11;
-      // 4'd13: whiteout = 6'b11_11_11;
-      // 4'd14: whiteout = 6'b11_11_11;
-      // 4'd15: whiteout = 6'b11_11_11;
       endcase
     end else begin
       whiteout = 0;
     end
   end
-
 
   wire [5:0] rgb = rgb_gate & ((
     (diag_wipe | full_color) ? rgb_gems : rgb_slide
@@ -211,8 +175,8 @@ module tt_um_algofoogle_dottee(
   wire [5:0] rgb_gems;
 
   wire logo_gone   = frame_counter>=12'd1024;
-  wire logo_en     = frame_counter>=12'd384 && !logo_gone;    // Logo visible from 00:06.4 to 00:17.1
-  wire shatter_in  = frame_counter[9:5]==5'b01100;
+  wire logo_en     = frame_counter>=12'd512 && !logo_gone;    // Logo visible from 00:06.4 to 00:17.1
+  wire shatter_in  = frame_counter[9:5]==5'b10000; //5'b01110;
   wire shatter_out = frame_counter[9:5]==5'b11111;
 
   wire logo_revealed = frame_counter[11:5]>=7'b0001101;
@@ -277,6 +241,31 @@ module tt_um_algofoogle_dottee(
   wire [9:0] hlogo = h^logo_shatter;
 `endif//SIMPLE_LOGO_REVEAL
 
+  circle_edge ce_shared(
+    // Inputs:
+    .clk(clk),
+    .reset(reset),
+    .radius(ce_radius),
+    .vertical_line(ce_vline), 
+    .start(ce_start),
+    // Outputs:
+    .done(ce_done),
+    .valid(ce_valid),
+    .edge_point(ce_edge)
+  );
+
+  wire [5:0] logo_ce_radius;
+  wire [5:0] logo_ce_vline;
+  wire       logo_ce_start;
+
+  // For now, the inputs to the "shared" circle_edge (ce_shared) module are just mastered by dottee_logo:
+  wire [5:0] ce_radius = logo_ce_radius;
+  wire [5:0] ce_vline = logo_ce_vline;
+  wire       ce_start = logo_ce_start;
+  wire       ce_done;
+  wire       ce_valid;
+  wire [5:0] ce_edge; // Computed edge horizontal distance.
+
   dottee_logo logo(
     .clk(clk),
     .reset(reset),
@@ -290,7 +279,14 @@ module tt_um_algofoogle_dottee(
     .h(hlogo),
     .tt_only(0),
 `endif//SPIN_LOGO
-    .logo_hit(logo_hit_raw)
+    .logo_hit(logo_hit_raw),
+    // Interface to the shared circle_edge (ce_shared) module:
+    .ceo_radius(logo_ce_radius),
+    .ceo_vline(logo_ce_vline),
+    .ceo_start(logo_ce_start),
+    .cei_done(ce_done),
+    .cei_valid(ce_valid),
+    .cei_edge(ce_edge)
   );
 
 `ifdef SPIN_LOGO
@@ -305,18 +301,30 @@ module tt_um_algofoogle_dottee(
 
   wire hstagger = vgems[DOTBITS]; // Half offset alternate rows of gems?
 
-  wire [DOTBITS-1:0] max_radius = (1<<(DOTBITS-1));
+  wire [DOTBITS-1:0] max_radius =
+    (hlut<<2) + frame_counter[5:0]; //({6{frame_counter[6]}} ^ frame_counter[5:0]); //(1<<(DOTBITS-1));
+
+  wire [DOTBITS-3:0] hlut;
+  wire [DOTBITS-3:0] vlut;
+
+  // wire altgem = (gem_mode == 4) && (max_radius >= 32);
+
+  // wire [9:0] hslide = (&frame_counter[11:10]) ? (frame_counter[9:2] ^ {6{vlut[0]}}) : 0;
 
   gems #(.DOTBITS(DOTBITS)) gems1(
-    .h(hstagger ? h+(1<<(DOTBITS-1)) : h),
+    .h( (hstagger ? h+(1<<(DOTBITS-1)) : h)),// + hslide),
     .v(v+counter),
     .counter(logo_revealed ? ~(counter+256) : 0), // Start animating dots after the logo has been fully-revealed.
     // .fmode(15),
-    .fmode(gem_mode),
+    .fmode(gem_mode),//   (gem_mode != 4) ? gem_mode : ((max_radius>=32) ? 5 : 4)),
+    // .fmode(altgem ? 5 : gem_mode),//   (gem_mode != 4) ? gem_mode : ((max_radius>=32) ? 5 : 4)),
     // .bmode(gem_bmode),
-    .bmode(7), // 0 is black. 1 is original. 7 is blue/magenta.
+    // .bmode(altgem ? 0 : 3), // 0 is black. 1 is original. 7 is blue/magenta.
+    .bmode(3), // 0 is black. 1 is original. 7 is blue/magenta.
     .inr(max_radius), //NOTE: Intentionally or not, radius behaves as the absolute of a signed value??
     .hit(gem_hit),
+    .hlut(hlut),
+    .vlut(vlut),
     .rgb(rgb_gems)
   );
 
@@ -332,12 +340,10 @@ module tt_um_algofoogle_dottee(
   wire debug_gem_mode_p = gem_mode[~h[4:3]]; // "Pixels" are 8-wide and there's 4 of them.
 `endif//DEBUG_GEM_MODE_UI
 
-  wire in_logo_shade = ~logo_gone && (
-    ((v[8:5] == 4 || v[8:5] == 10) && (fuzz)) ||
-    ((v[8:5] >= 5 && v[8:5] <= 9) && (tfuzz))
-  );
-
   wire [5:0] rgb_unblanked = 
+`ifdef DEBUG_DAC
+    (h>=10'd544) ? {2'b00,{2{dac_out}}, 2'b00} :
+`endif
 `ifdef DEBUG_GEM_MODE_SHOW
     (debug_gem_mode_en) ? {6{debug_gem_mode_p}} :
 `endif//DEBUG_GEM_MODE_SHOW
@@ -346,7 +352,6 @@ module tt_um_algofoogle_dottee(
 `endif//DEBUG_BAR
 (
     (logo_hit && logo_en) ? logo_color :
-    // (in_logo_shade && logo_en)      ? ((rgb>>1)&6'b01_01_01) :
                           rgb) | whiteout;
 
   assign {R,G,B} = (!video_active) ? 6'b00_00_00 : rgb_unblanked;

@@ -37,7 +37,7 @@ jobs:
       - name: GL test
         uses: TinyTapeout/tt-gds-action/gl_test@ttsky26a
         env:
-          FRAMES: 3 # Limit frames, so it doesn't take too long.
+          FRAMES: 1 # Limit frames, so it doesn't take too long.
 
       - name: Install ImageMagick
         shell: bash
@@ -72,6 +72,7 @@ jobs:
           path: |
             test/frames_out/frames-gl.tgz
             test/frames_out/frames-gl.gif
+            test/frames_out/audio-stream.bin
 
   viewer:
     needs: gds

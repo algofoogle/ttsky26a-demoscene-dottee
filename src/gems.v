@@ -1,3 +1,4 @@
+// `define EN_SHEEN
 // `define CLASSIC_SQ // If defined, use "classic" squaring with real x*x. Else, use a LUT of squares.
 `define ROUGH_LUT_6B // Use a LUT of rough approximations (expected to optimise better) for fixed 6-bit-wide squares.
 // `define TRUE_SQ // Should LUT square use true negatives?
@@ -105,17 +106,21 @@ module gems #(
   input [3:0] fmode, // Front effect mode.
   input [2:0] bmode, // Background effect mode.
   input [DOTBITS-1:0] inr,
-  // output [DOTBITS-1:0] hlut,
-  // output [DOTBITS-1:0] vlut,
+  output [DOTBITS-3:0] hlut,
+  output [DOTBITS-3:0] vlut,
   output [5:0] rgb,
   output hit
 );
 
   wire [9:0] hc = h+(1<<(DOTBITS-1));
   wire [9:0] vc = v+(1<<(DOTBITS-1));
+  // Low-res cell value lookup addresses (for inr):
+  assign hlut = hc[9:(12-DOTBITS)];
+  assign vlut = vc[9:(12-DOTBITS)];
+  
   // wire [9:0] r = (counter[DOTBITS-2:0] ^ {(DOTBITS-1){counter[DOTBITS-1]}}) * ({2{hc[7]}} ^ hc[6:5]);
   wire [9:0] r =
-    fmode==15 ? inr :
+    fmode==4 ? inr :
                 (counter[DOTBITS-2:0] ^ {(DOTBITS-1){counter[DOTBITS-1]}}) + 1 + ({3{hc[8]}} ^ hc[7:5]);
 
   wire signed [9:0] dx = $signed(h[DOTBITS-1:0]);
@@ -147,7 +152,9 @@ module gems #(
 
   wire [5:0] white = 6'b11_11_11;
 
+`ifdef EN_SHEEN
   wire sheen = (hc[DOTBITS-1:2]==4'b101 && vc[DOTBITS-1:2]==4'b101);// ||
+`endif//EN_SHEEN
 
   // Not regs:
   reg [5:0] color;
@@ -158,23 +165,46 @@ module gems #(
     color = hvc;
     // Select where hit calculation comes from:
     case (fmode)
-    4'd0:   ho = 0;
-    4'd1:   ho = 1;                                         // This effect used to be mode2
-    4'd2:   ho = regular_hit;                               // This effect used to be mode0
-    4'd3:   ho = (d[10]^d[7]);
-    4'd4:   ho = r[3];
-    4'd5:   ho = ((d < r2) | d[10]);
-    4'd6:   ho = (checkerboard ? 1 : d[7]);
-    4'd7:   ho = (checkerboard ? (d < r2) : 0);
-    4'd8:   ho = (checkerboard ? (d[10]^d[7]) : (d < r2));
-    4'd9:   ho = 0;
-    4'd10:  ho = d[DOTBITS+4];
-    4'd11:  ho = d[DOTBITS+3];
-    4'd12:  ho = d[DOTBITS+2];
-    4'd13:  ho = d[DOTBITS+1];
-    4'd14:  ho = d[DOTBITS+0];
-    // Simple solid-filled dots:
-    4'd15:  begin ho = regular_hit; color=white; end                  // Simple dots.
+    // 4'd0, 4'd1, 4'd2, 4'd3, 4'd4, 4'd5, 4'd6, 4'd7:
+    //         ho = d[DOTBITS+0];
+    // 4'd8:   begin ho = regular_hit; color=white; end
+    // 4'd9:   ho = 0;
+    // 4'd10:  ho = (checkerboard ? (d < r2) : 0);
+    // 4'd11:  
+
+    // Intro phase:
+    4'd0, 4'd1, 4'd2, 4'd3:   ho = d[DOTBITS+0];                      // 14: High freq concentric circles.
+
+    // Simple dots:
+    4'd4:               begin ho = regular_hit; color=6'b11_00_10; end      // 15: Simple dots. NOTE: Changing the index means you need to update the def'n of 'r' and 'rgb' too.
+    4'd5:               begin ho = regular_hit; color=white; end      // 10: Catseye and simple BG (BORING). NOTE: Despite same code as #4, this is different because of other code sensitive to fmode==4.
+    4'd6:                     ho = (checkerboard ? regular_hit : 0);  // 7: Original style with Catseye.
+    4'd7:                     ho = r[3];                              // 4: Simple wipes.
+    4'd8:                     ho = 1;                                 // 1: Pretty rainbow blooms. This effect used to be mode2
+    4'd9:                     ho = regular_hit;                       // 2: Original style. Looks pretty nice with magenta BG & colours emerging.
+    4'd10:                    ho = (checkerboard ? 1 : d[7]);         // 6: Spirals with blooms.
+    4'd11:                    ho = (regular_hit | d[10]);             // 5: Original style, with different BG pattern.
+    4'd12:                    ho = d[DOTBITS+0];
+    4'd13:                    ho = d[DOTBITS+3];                      // 11: Nice radial discs
+    4'd14:                    ho = d[DOTBITS+2];
+    4'd15:                    ho = d[DOTBITS+1];
+    // 4'd0:   ho = 0;                                             // 0: Catseye
+    // 4'd1:   ho = 1;                                             // 1: Pretty rainbow blooms. This effect used to be mode2
+    // 4'd2:   ho = regular_hit;                                   // 2: Original style. Looks pretty nice with magenta BG & colours emerging.
+    // 4'd3:   ho = (d[10]^d[7]);                                  // 3: Nice geometric circle patterns.
+    // 4'd4:   ho = r[3];                                          // 4: Simple wipes.
+    // 4'd5:   ho = (regular_hit | d[10]);                         // 5: Original style, with different BG pattern.
+    // 4'd6:   ho = (checkerboard ? 1 : d[7]);                     // 6: Spirals with blooms.
+    // 4'd7:   ho = (checkerboard ? regular_hit : 0);              // 7: Original style with Catseye.
+    // 4'd8:   ho = (checkerboard ? (d[10]^d[7]) : regular_hit);   // 8: Original and 3
+    // 4'd9:   ho = 0;                                             // 9: Catseye (dup)
+    // 4'd10:  ho = d[DOTBITS+4];                                  // 10: Catseye and simple BG (BORING)
+    // 4'd11:  ho = d[DOTBITS+3];                                  // 11: Nice radial discs
+    // 4'd12:  ho = d[DOTBITS+2];
+    // 4'd13:  ho = d[DOTBITS+1];
+    // 4'd14:  ho = d[DOTBITS+0];
+    // // Simple solid-filled dots:
+    // 4'd15:  begin ho = regular_hit; color=white; end                  // Simple dots.
     endcase
   end
 
@@ -233,8 +263,10 @@ module gems #(
   // // mode15 NO
 
   assign rgb = 
-    fmode==15 ? (hit?color:0) :
+    fmode==4  ? (hit?color:0) :
+`ifdef EN_SHEEN
     sheen     ? white :
+`endif//EN_SHEEN
     hit       ? (delta[9:6]+color) :
                 altcolor;  //(dithery & 6'b01_01_01);
 
