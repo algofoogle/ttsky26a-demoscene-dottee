@@ -14,7 +14,15 @@ module dottee_logo #(
     input [9:0] v,
     input [9:0] counter,
     input tt_only,
-    output logo_hit
+    output logo_hit,
+
+    // circle_edge interface...
+    output [5:0]  ceo_radius,
+    output [5:0]  ceo_vline,
+    output        ceo_start,
+    input         cei_done,
+    input         cei_valid,
+    input [5:0]   cei_edge // Computed edge horizontal distance.
 );
   localparam THICKNESS = 16;
   localparam [5:0] circle_outer_radius = 6'd63;
@@ -47,18 +55,13 @@ module dottee_logo #(
 
   wire [9:0] cvo = v-112; // Circle vertical offset: Logo positioning.
 
-  circle_edge slow_circle(
-    // Inputs:
-    .clk(clk),
-    .reset(reset),
-    .radius(circle_radius),
-    .vertical_line(cvo[6] ? cvo[5:0] : ~cvo[5:0]), // Circle is vertically symmetrical.
-    .start(circle_start),
-    // Outputs:
-    .done(circle_done),
-    .valid(circle_valid),
-    .edge_point(circle_edge)
-  );
+  // Interface to shared external circle_edge module:
+  assign ceo_radius = circle_radius;
+  assign ceo_vline = cvo[6] ? cvo[5:0] : ~cvo[5:0]; // Circle is vertically symmetrical.
+  assign ceo_start = circle_start;
+  assign circle_done = cei_done;
+  assign circle_valid = cei_valid;
+  assign circle_edge = cei_edge;
 
   always @(posedge clk) begin
     if (reset)

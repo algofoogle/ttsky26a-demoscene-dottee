@@ -70,6 +70,14 @@ async def test_frames(dut):
     z_count = 0
     sample_count = 0 # Total count of pixels or samples.
 
+    audio_bit_counter = 0
+    audio_bit_accum = 0
+    audio_x = 0
+    audio_z = 0
+    total_audio_bits = 0
+
+    dds = open(f"frames_out/audio_stream.bin", "wb")
+
     for frame in range(frame_count):
         render_start_time = time.time()
 
@@ -82,8 +90,27 @@ async def test_frames(dut):
         img.write("255\n")
 
         for n in range(vrange): # 525 lines * however many frames in frame_count
+            dds.flush()
             print(f"Rendering line {n} of frame {frame}")
             for n in range(int(hrange*hres)): # 800 pixel clocks per line.
+                speaker = dut.speaker.value
+                sc = str(speaker).lower()
+                audio_bit_accum <<= 1
+                if 'x' in sc:
+                    audio_x += 1
+                elif 'z' in sc:
+                    audio_z += 1
+                else:
+                    audio_bit_accum |= (int(speaker) & 1)
+                if audio_bit_counter == 7:
+                    # Write this bit out, then reset the accumulator:
+                    dds.write(audio_bit_accum.to_bytes(1))
+                    audio_bit_accum = 0
+                    audio_bit_counter = 0
+                else:
+                    audio_bit_counter += 1
+                total_audio_bits += 1
+
                 if n % 100 == 0:
                     print('.', end='')
                 if 'x' in str(dut.rgb.value).lower():
@@ -119,9 +146,10 @@ async def test_frames(dut):
         render_stop_time = time.time()
         delta = render_stop_time - render_start_time
         print(f"[{render_stop_time}: Frame simulated in {delta} seconds]")
+    dds.close()
     print("Waiting 1 more clock, for start of next line...")
     await ClockCycles(dut.clk, 1)
 
     # await toggler
 
-    print(f"DONE: Out of {sample_count} pixels/samples, got: {x_count} 'x'; {z_count} 'z'")
+    print(f"DONE: Out of {sample_count} pixels/samples, got: {x_count} 'x'; {z_count} 'z' -- Out of {total_audio_bits} audio bits, got: {audio_x} 'x'; {audio_z} 'z'")

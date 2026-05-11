@@ -267,6 +267,31 @@ module tt_um_algofoogle_dottee(
   wire [9:0] hlogo = h^logo_shatter;
 `endif//SIMPLE_LOGO_REVEAL
 
+  circle_edge ce_shared(
+    // Inputs:
+    .clk(clk),
+    .reset(reset),
+    .radius(ce_radius),
+    .vertical_line(ce_vline), 
+    .start(ce_start),
+    // Outputs:
+    .done(ce_done),
+    .valid(ce_valid),
+    .edge_point(ce_edge)
+  );
+
+  wire [5:0] logo_ce_radius;
+  wire [5:0] logo_ce_vline;
+  wire       logo_ce_start;
+
+  // For now, the inputs to the "shared" circle_edge (ce_shared) module are just mastered by dottee_logo:
+  wire [5:0] ce_radius = logo_ce_radius;
+  wire [5:0] ce_vline = logo_ce_vline;
+  wire       ce_start = logo_ce_start;
+  wire       ce_done;
+  wire       ce_valid;
+  wire [5:0] ce_edge; // Computed edge horizontal distance.
+
   dottee_logo logo(
     .clk(clk),
     .reset(reset),
@@ -280,7 +305,14 @@ module tt_um_algofoogle_dottee(
     .h(hlogo),
     .tt_only(0),
 `endif//SPIN_LOGO
-    .logo_hit(logo_hit_raw)
+    .logo_hit(logo_hit_raw),
+    // Interface to the shared circle_edge (ce_shared) module:
+    .ceo_radius(logo_ce_radius),
+    .ceo_vline(logo_ce_vline),
+    .ceo_start(logo_ce_start),
+    .cei_done(ce_done),
+    .cei_valid(ce_valid),
+    .cei_edge(ce_edge)
   );
 
 `ifdef SPIN_LOGO
