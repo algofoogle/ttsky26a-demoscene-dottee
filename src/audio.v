@@ -11,7 +11,7 @@ module audio #(
     parameter FS1K = 31468750 // Sampling rate * 1000, in Hz. Derived from 25175000/800 (VGA horizontal frequency).
 ) (
     input clk,
-    input reset,
+    input rst_n,
     input [11:0] frame_counter,
     input sample_clk,
     output dac_out
@@ -210,7 +210,7 @@ module audio #(
         .SUB(SUB)
     ) v1 (
         .clk(clk),
-        .reset(reset),
+        .rst_n(rst_n),
         .trigger(sample_clk), // Go high for 1 clk whenever we must accumulate another phase increment.
         .inc(pinc),
         .sample_out(phase1)
@@ -222,7 +222,7 @@ module audio #(
         .SUB(SUB)
     ) v2 (
         .clk(clk),
-        .reset(reset),
+        .rst_n(rst_n),
         .trigger(sample_clk), // Go high for 1 clk whenever we must accumulate another phase increment.
         .inc(p2),
         .sample_out(phase2)
@@ -277,7 +277,7 @@ module audio #(
 
     sigmadelta_dac #(.B(B)) dac(
         .clk(clk),
-        .reset(reset),
+        .rst_n(rst_n),
         .sample_in(sample+(1<<(B-1))), // signed => unsigned.
         .dac_out(dac_out)
     );
@@ -291,7 +291,7 @@ module phase_acc #(
     parameter MSB = B+SUB-1
 ) (
     input clk,
-    input reset,
+    input rst_n,
     input trigger,
     input [MSB:0] inc,
     output [B-1:0] sample_out
@@ -299,7 +299,7 @@ module phase_acc #(
     reg [MSB:0] phase;
     assign sample_out = phase[MSB:SUB];
     always @(posedge clk) begin
-        if (reset)
+        if (~rst_n)
             phase <= 0;
         else if (trigger)
             phase <= phase + {inc};
@@ -311,7 +311,7 @@ module sigmadelta_dac #(
     parameter B = 5 // Sample bit resolution.
 ) (
     input  wire clk,
-    input  wire reset,
+    input  wire rst_n,
     input  wire [B-1:0] sample_in,
     output reg  dac_out //NOTE: Does this actually need to be registered??
 );
@@ -319,7 +319,7 @@ module sigmadelta_dac #(
     wire [B:0] sd_sum = {1'b0, sd_err} + {1'b0, sample_in};
 
     always @(posedge clk) begin
-        if (reset) begin
+        if (~rst_n) begin
             sd_err  <= 0;
             dac_out <= 0;
         end else begin

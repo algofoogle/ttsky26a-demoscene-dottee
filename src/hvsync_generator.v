@@ -33,7 +33,7 @@ module hvsync_generator #(
 ) (
   // Inputs:
   input wire          clk,
-  input wire          reset,
+  input wire          rst_n,
   // Outputs:
   output reg          hsync,
   output reg          vsync,
@@ -56,26 +56,26 @@ module hvsync_generator #(
 
   // Horizontal tracing:
   always @(posedge clk) begin
-          if (reset)                      hpos <= 0;
+          if (~rst_n)                     hpos <= 0;
     else  if (hmax)                       hpos <= 0;
     else                                  hpos <= hpos + 1'b1;
   end
 
   // Vertical tracing:
   always @(posedge clk) begin
-          if (reset)                      vpos <= 0;
+          if (~rst_n)                     vpos <= 0;
     else  if (hmax)                       vpos <= (vmax) ? 10'd0 : vpos + 1'b1;
   end
 
   // HSYNC:
   always @(posedge clk) begin
-          if (hpos==H_SYNC_END || reset)  hsync <= 0;
+          if (hpos==H_SYNC_END || ~rst_n) hsync <= 0;
     else  if (hpos==H_SYNC_START)         hsync <= 1;
   end
 
   // VSYNC:
   always @(posedge clk) begin
-          if (vpos==V_SYNC_END || reset)  vsync <= 0;
+          if (vpos==V_SYNC_END || ~rst_n) vsync <= 0;
     else  if (vpos==V_SYNC_START)         vsync <= 1;
   end
 endmodule

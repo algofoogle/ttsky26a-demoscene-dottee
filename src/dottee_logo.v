@@ -8,7 +8,7 @@ module dottee_logo #(
   parameter V_REVEAL_DELAY = 32
 ) (
     input clk,
-    input reset,
+    input rst_n,
     input [9:0] realh, // Drives internal state machines.
     input [9:0] h,
     input [9:0] v,
@@ -64,7 +64,7 @@ module dottee_logo #(
   assign circle_edge = cei_edge;
 
   always @(posedge clk) begin
-    if (reset)
+    if (~rst_n)
       circle_outer_edge <= 0;
     else if (realh==10'd700)
       circle_outer_edge <= circle_edge;

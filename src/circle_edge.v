@@ -1,6 +1,6 @@
 module circle_edge(
     input clk,
-    input reset,
+    input rst_n,
     input [5:0] radius,
     input [5:0] vertical_line,
     input start,
@@ -29,7 +29,7 @@ module circle_edge(
                           radius - x;
 
     always @(posedge clk) begin
-        if (reset) begin
+        if (~rst_n) begin
             x <= 6'd0;
             y <= 6'd0;
             d <= 8'sd0;

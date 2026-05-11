@@ -32,8 +32,8 @@ module tt_um_algofoogle_dottee(
 );
 
   localparam DOTBITS = 6; //NOTE: Increasing to 6 gives quadrant colours, like gems.
-  localparam AUDIO_BITS = 5;
-  localparam AUDIO_SUB = 8;
+  localparam AUDIO_BITS = 6;
+  localparam AUDIO_SUB = 7;
 
   wire dac_out; //NOTE: This is (probably) already registered, within the 'audio' module.
   wire speaker = dac_out;
@@ -42,7 +42,7 @@ module tt_um_algofoogle_dottee(
 
   audio #(.B(AUDIO_BITS), .SUB(AUDIO_SUB)) synth (
     .clk(clk),
-    .reset(reset),
+    .rst_n(rst_n),
     .frame_counter(frame_counter),
     .sample_clk(line_end),
     .dac_out(dac_out)
@@ -80,8 +80,6 @@ module tt_um_algofoogle_dottee(
 
   // wire [2:0] gem_bmode = ui_in[6:4];
 
-  wire reset = ~rst_n;
-
   // TinyVGA PMOD with registered outputs
   // NOTE: Only colours are registered, since hsync/vsync jitter is unlikely.
   reg [5:0] RGB_reg;
@@ -104,7 +102,7 @@ module tt_um_algofoogle_dottee(
 
   hvsync_generator hvsync_gen(
     .clk(clk),
-    .reset(reset),
+    .rst_n(rst_n),
     .hsync(hsync),
     .vsync(vsync),
     .visible(video_active),
@@ -141,7 +139,7 @@ module tt_um_algofoogle_dottee(
     endcase
   end
 
-  wire [9:0] hvdelta = (h-(counter<<5)+10'b1000000000)+(v>>1);
+  wire [9:0] hvdelta = (h-(counter<<5)^10'b1000000000)+(v>>1);
   wire start_diag_wipe = frame_counter >= 12'b0011111_10000;
   wire within_whiteout = frame_counter >= 12'b0100000_00000 && (frame_counter < 12'b0100000_10000);
   wire diag_wipe = (hvdelta[9:7] == 0) && (start_diag_wipe) && (frame_counter < 12'b0100000_01100);
@@ -182,8 +180,8 @@ module tt_um_algofoogle_dottee(
   wire logo_revealed = frame_counter[11:5]>=7'b0001101;
 
   wire [9:0] logo_shatter =
-    shatter_in  ? {5'd0,~frame_counter[4:0]} :
-    shatter_out ? {5'd0, frame_counter[4:0]} : 0;
+    shatter_in  ? {5'd0,~frame_counter[4:0]} : 0;
+    // shatter_out ? {5'd0, frame_counter[4:0]} : 0;
 
 `ifdef SPIN_LOGO
   // Logic for handling logo spin (inc. colour):
@@ -244,7 +242,7 @@ module tt_um_algofoogle_dottee(
   circle_edge ce_shared(
     // Inputs:
     .clk(clk),
-    .reset(reset),
+    .rst_n(rst_n),
     .radius(ce_radius),
     .vertical_line(ce_vline), 
     .start(ce_start),
@@ -268,7 +266,7 @@ module tt_um_algofoogle_dottee(
 
   dottee_logo logo(
     .clk(clk),
-    .reset(reset),
+    .rst_n(rst_n),
     .counter(counter),
     .realh(hlogo), // Drives internal state machines.
     .v((v^logo_shatter)),// - logo_bounce),
