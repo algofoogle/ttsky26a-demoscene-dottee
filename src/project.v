@@ -32,45 +32,21 @@ module tt_um_algofoogle_dottee(
 );
 
   localparam DOTBITS = 6; //NOTE: Increasing to 6 gives quadrant colours, like gems.
-  localparam AUDIO_BITS = 6;
-  localparam AUDIO_SUB = 7;
+  localparam AUDIO_BITS = 4;
+  localparam AUDIO_SUB = 9;
 
-  // // Creates an attenuated sound during the logo that sounds like a drum/hat:
-  // reg [3:0] pwm;
-  // always @(posedge clk) pwm <= (~rst_n) ? 0 : pwm + 1;
-  // wire speaker = //0;
-  //   full_color  ? (rgb_unblanked[3]) & (pwm > counter[3:0]) :
-  //   logo_en     ? (rgb_unblanked[0] | ( counter[6] & ~vsync )) & (pwm > counter[3:0]):
-  //                 (rgb_unblanked[2] | ( counter[5] & ~vsync )) & (pwm > counter[3:0]) & (pwm[0]);// & pwm[1]);
-
-  wire dac_out; //NOTE: THis is (probably) already registered, within the 'audio' module.
+  wire dac_out; //NOTE: This is (probably) already registered, within the 'audio' module.
   wire speaker = dac_out;
 
-  wire line_end = (h==799); //SMELL: Make hvsync_generator supply this.
+  wire line_end;
 
   audio #(.B(AUDIO_BITS), .SUB(AUDIO_SUB)) synth (
     .clk(clk),
     .reset(reset),
-    // .ext_square(rgb_unblanked[0]),
-    // .vline(v),
     .frame_counter(frame_counter),
     .sample_clk(line_end),
     .dac_out(dac_out)
   );
-
-  // reg flava;
-  // always @(*) begin
-  //   case (ui_in[3:0])
-  //   4'b0000: flava = rgb_unblanked[0]; //RGB_reg[5]; // B[0] // Crunchy logo sound.
-  //   4'b0001: flava = rgb_unblanked[1]; //RGB_reg[2]; // B[1] // Sort of works with music in XOR mode.
-  //   4'b0010: flava = rgb_unblanked[2]; //RGB_reg[4]; // G[0] // With XOR, complements music nicely -- adds variation. As does the one below (mode 3).
-  //   4'b0011: flava = rgb_unblanked[3]; //RGB_reg[1]; // G[1] // Interesting wobble beneath dominant 60Hz.
-  //   4'b0100: flava = rgb_unblanked[4]; //RGB_reg[3]; // R[0] // Lasery sound under annoying 60Hz.
-  //   4'b0101: flava = rgb_unblanked[5]; //RGB_reg[0]; // R[1] // Dalek under 60Hz. Interesting in moderation.
-  //   endcase
-  // end
-
-  // wire speaker = ui_in[7] ? (flava & dac_out) : (flava ^ dac_out);
 
   // VGA signals
   wire hsync;
@@ -131,9 +107,10 @@ module tt_um_algofoogle_dottee(
     .reset(reset),
     .hsync(hsync),
     .vsync(vsync),
-    .display_on(video_active),
+    .visible(video_active),
     .hpos(h),
-    .vpos(v)
+    .vpos(v),
+    .hmax(line_end)
   );
 
   wire [5:0] rgb_gate = { {2{en_r}}, {2{en_g}}, {2{en_b}} };
@@ -167,7 +144,7 @@ module tt_um_algofoogle_dottee(
   wire [9:0] hvdelta = (h-(counter<<5)+10'b1000000000)+(v>>1);
   wire start_diag_wipe = frame_counter >= 12'b0011111_10000;
   wire within_whiteout = frame_counter >= 12'b0100000_00000 && (frame_counter < 12'b0100000_10000);
-  wire diag_wipe = (hvdelta[9:7] == 0) && (start_diag_wipe) && (frame_counter < 12'b0100000_01100);//counter[9:6]);
+  wire diag_wipe = (hvdelta[9:7] == 0) && (start_diag_wipe) && (frame_counter < 12'b0100000_01100);
   wire full_color = (frame_counter >= 12'b0100000_10000);
 
   reg [5:0] whiteout;
@@ -185,18 +162,11 @@ module tt_um_algofoogle_dottee(
       4'd8: whiteout = 6'b11_11_11;
       4'd9: whiteout = 6'b11_11_11;
       default: whiteout = 6'b11_11_11;
-      // 4'd10: whiteout = 6'b11_11_11;
-      // 4'd11: whiteout = 6'b11_11_11;
-      // 4'd12: whiteout = 6'b11_11_11;
-      // 4'd13: whiteout = 6'b11_11_11;
-      // 4'd14: whiteout = 6'b11_11_11;
-      // 4'd15: whiteout = 6'b11_11_11;
       endcase
     end else begin
       whiteout = 0;
     end
   end
-
 
   wire [5:0] rgb = rgb_gate & ((
     (diag_wipe | full_color) ? rgb_gems : rgb_slide
@@ -331,18 +301,28 @@ module tt_um_algofoogle_dottee(
 
   wire hstagger = vgems[DOTBITS]; // Half offset alternate rows of gems?
 
-  wire [DOTBITS-1:0] max_radius = (1<<(DOTBITS-1));
+  wire [DOTBITS-1:0] max_radius =
+    (hlut<<2) + frame_counter[5:0]; //({6{frame_counter[6]}} ^ frame_counter[5:0]); //(1<<(DOTBITS-1));
+
+  wire [DOTBITS-3:0] hlut;
+  // wire [DOTBITS-3:0] vlut;
+
+  // wire altgem = (gem_mode == 4) && (max_radius >= 32);
 
   gems #(.DOTBITS(DOTBITS)) gems1(
     .h(hstagger ? h+(1<<(DOTBITS-1)) : h),
     .v(v+counter),
     .counter(logo_revealed ? ~(counter+256) : 0), // Start animating dots after the logo has been fully-revealed.
     // .fmode(15),
-    .fmode(gem_mode),
+    .fmode(gem_mode),//   (gem_mode != 4) ? gem_mode : ((max_radius>=32) ? 5 : 4)),
+    // .fmode(altgem ? 5 : gem_mode),//   (gem_mode != 4) ? gem_mode : ((max_radius>=32) ? 5 : 4)),
     // .bmode(gem_bmode),
-    .bmode(7), // 0 is black. 1 is original. 7 is blue/magenta.
+    // .bmode(altgem ? 0 : 3), // 0 is black. 1 is original. 7 is blue/magenta.
+    .bmode(3), // 0 is black. 1 is original. 7 is blue/magenta.
     .inr(max_radius), //NOTE: Intentionally or not, radius behaves as the absolute of a signed value??
     .hit(gem_hit),
+    .hlut(hlut),
+    // .vlut(vlut),
     .rgb(rgb_gems)
   );
 
@@ -358,11 +338,6 @@ module tt_um_algofoogle_dottee(
   wire debug_gem_mode_p = gem_mode[~h[4:3]]; // "Pixels" are 8-wide and there's 4 of them.
 `endif//DEBUG_GEM_MODE_UI
 
-  wire in_logo_shade = ~logo_gone && (
-    ((v[8:5] == 4 || v[8:5] == 10) && (fuzz)) ||
-    ((v[8:5] >= 5 && v[8:5] <= 9) && (tfuzz))
-  );
-
   wire [5:0] rgb_unblanked = 
 `ifdef DEBUG_DAC
     (h>=10'd544) ? {2'b00,{2{dac_out}}, 2'b00} :
@@ -375,7 +350,6 @@ module tt_um_algofoogle_dottee(
 `endif//DEBUG_BAR
 (
     (logo_hit && logo_en) ? logo_color :
-    // (in_logo_shade && logo_en)      ? ((rgb>>1)&6'b01_01_01) :
                           rgb) | whiteout;
 
   assign {R,G,B} = (!video_active) ? 6'b00_00_00 : rgb_unblanked;

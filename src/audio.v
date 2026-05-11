@@ -12,8 +12,6 @@ module audio #(
 ) (
     input clk,
     input reset,
-    // input ext_square,
-    // input [9:0] vline,
     input [11:0] frame_counter,
     input sample_clk,
     output dac_out
@@ -117,174 +115,47 @@ module audio #(
         // Simple 2 beats per first 2 bar:
         casez(frame_counter[6:3])
         4'd0:       pinc = note_map(NC,     1);
-        // // 4'd1:       pinc = note_map(NC,     2);
+        // 1
         4'd2:       pinc = note_map(NC,     1);
-        // // 4'd3:       pinc = note_map(NG,     1);
-        // // 4'd4:       pinc = note_map(NAs,    1);
-        // // 4'd5:       pinc = note_map(NC,     2);
-        // 4'd6:       pinc = note_map(NC,     1);
-        // // 4'd7:       pinc = note_map(NAs,    1);
-        // // 4'd8:       pinc = note_map(NG,     1);
-        // // 4'd9:       pinc = note_map(NAs,    1);
-        // // 4'd10:      pinc = note_map(NC,     2);
-        // // 4'd11:      pinc = note_map(NAs,    1);
-        // // 4'd12:      pinc = note_map(NG,     1);
-        // 4'd13:      pinc = note_map(NC,     1);
-        // // 4'd14:      pinc = note_map(NG,     1);
-        // 4'd15:      pinc = note_map(NC,     1);
+        // 3..15
         endcase
 
         // Then add 3 more beats for the next 2 bars:
         if (frame_counter[11:8]>0) begin
             casez(frame_counter[6:3])
-            // 4'd0:       pinc = note_map(NC,     1);
-            // // 4'd1:       pinc = note_map(NC,     2);
-            // 4'd2:       pinc = note_map(NC,     1);
-            // // 4'd3:       pinc = note_map(NG,     1);
-            // // 4'd4:       pinc = note_map(NAs,    1);
-            // // 4'd5:       pinc = note_map(NC,     2);
+            // 0..5
             4'd6:       pinc = note_map(NC,     1);
-            // // 4'd7:       pinc = note_map(NAs,    1);
-            // // 4'd8:       pinc = note_map(NG,     1);
-            // // 4'd9:       pinc = note_map(NAs,    1);
-            // // 4'd10:      pinc = note_map(NC,     2);
-            // // 4'd11:      pinc = note_map(NAs,    1);
-            // // 4'd12:      pinc = note_map(NG,     1);
+            // 7..13
             4'd13:      pinc = note_map(NC,     1);
-            // // 4'd14:      pinc = note_map(NG,     1);
+            // 14
             4'd15:      pinc = note_map(NC,     1);
             endcase
         end
 
-        // Then add other twinkles after that:
+        // Then add other flourishes after that:
         if (frame_counter[11:8]>1) begin
             casez(frame_counter[6:3])
-            // 4'd0:       pinc = note_map(NC,     1);
+            // 0
             4'd1:       pinc = note_map(NC,     2);
-            // 4'd2:       pinc = note_map(NC,     1);
+            // 2
             4'd3:       pinc = note_map(NG,     1);
             4'd4:       pinc = note_map(NAs,    1);
             4'd5:       pinc = note_map(NC,     2);
-            // 4'd6:       pinc = note_map(NC,     1);
+            // 6
             4'd7:       pinc = note_map(NAs,    1);
             4'd8:       pinc = note_map(NG,     1);
             4'd9:       pinc = note_map(NAs,    1);
             4'd10:      pinc = note_map(NC,     2);
             4'd11:      pinc = note_map(NAs,    1);
             4'd12:      pinc = note_map(NG,     1);
-            // 4'd13:      pinc = note_map(NC,     1);
+            // 13
             4'd14:      pinc = note_map(NG,     1);
-            // 4'd15:      pinc = note_map(NC,     1);
+            // 15
             endcase
         end
 
-
-        // casez(frame_counter[7:2])
-        // 6'd0,
-        // 6'd1:   pinc = note_map(NC, 1);
-        // // Rest: 4
-        // 6'd6:   pinc = note_map(NC, 1);
-        // // Rest: 1
-        // 6'd8,
-        // 6'd9:   pinc = note_map(NC, 1);
-        // // Rest: 2
-        // 6'd12,
-        // 6'd13:  pinc = note_map(NAs, 0);
-        // // Rest: 2
-        // 6'd16,
-        // 6'd17:  pinc = note_map(NG, 0);
-        // // Rest: 2
-        // 6'd20,
-        // 6'd21:  pinc = note_map(NAs, 0);
-        // // Rest: 2
-        // 6'd24,
-        // 6'd25:  pinc = note_map(NC, 1);
-        // // Rest: 2
-        // 6'd28,
-        // 6'd29:  pinc = note_map(NDs, 1);
-        // // Rest: 2
-        // 6'd32,
-        // 6'd33:  pinc = note_map(NAs, 0);
-        // // Rest: 4
-        // 6'd38,
-        // 6'd39:  pinc = note_map(ND, 1);
-        // 6'd40,
-        // 6'd41:  pinc = note_map(NF, 1);
-        // // Rest: 2
-        // 6'd44,
-        // 6'd45:  pinc = note_map(ND, 1);
-        // // Rest: 2
-        // 6'd48,
-        // 6'd49:  pinc = note_map(NAs, 0);
-        // 6'd50,
-        // 6'd51:  pinc = note_map(ND, 1);
-        // 6'd52,
-        // 6'd53:  pinc = note_map(NF, 1);
-        // 6'd54,
-        // 6'd55:  pinc = note_map(ND, 1);
-        // 6'd56,
-        // 6'd57:  pinc = note_map(NAs, 0);
-        // 6'd58,
-        // 6'd59:  pinc = note_map(ND, 1);
-        // 6'd60,
-        // 6'd61:  pinc = note_map(NF, 1);
-        // 6'd62,
-        // 6'd63:  pinc = note_map(ND, 1);
-        // endcase
-
-        // casez(frame_counter[7:2])
-        // 6'd0,
-        // 6'd1:   pinc = PC<<1;
-        // // Rest: 4
-        // 6'd6:   pinc = PC<<1;
-        // // Rest: 1
-        // 6'd8,
-        // 6'd9:   pinc = PC<<1;
-        // // Rest: 2
-        // 6'd12,
-        // 6'd13:  pinc = PAs;
-        // // Rest: 2
-        // 6'd16,
-        // 6'd17:  pinc = PG;
-        // // Rest: 2
-        // 6'd20,
-        // 6'd21:  pinc = PAs;
-        // // Rest: 2
-        // 6'd24,
-        // 6'd25:  pinc = PC<<1;
-        // // Rest: 2
-        // 6'd28,
-        // 6'd29:  pinc = PDs<<1;
-        // // Rest: 2
-        // 6'd32,
-        // 6'd33:  pinc = PAs;
-        // // Rest: 4
-        // 6'd38,
-        // 6'd39:  pinc = PD<<1;
-        // 6'd40,
-        // 6'd41:  pinc = PF<<1;
-        // // Rest: 2
-        // 6'd44,
-        // 6'd45:  pinc = PD<<1;
-        // // Rest: 2
-        // 6'd48,
-        // 6'd49:  pinc = PAs;
-        // 6'd50,
-        // 6'd51:  pinc = PD<<1;
-        // 6'd52,
-        // 6'd53:  pinc = PF<<1;
-        // 6'd54,
-        // 6'd55:  pinc = PD<<1;
-        // 6'd56,
-        // 6'd57:  pinc = PAs;
-        // 6'd58,
-        // 6'd59:  pinc = PD<<1;
-        // 6'd60,
-        // 6'd61:  pinc = PF<<1;
-        // 6'd62,
-        // 6'd63:  pinc = PD<<1;
-        // endcase
-        pinc = pinc << 1; // Bump up an extra octave.
+        if (frame_counter[11:8]<12 || frame_counter[1])
+            pinc = pinc << 1; // Bump up an extra octave in the early bars.
     end
 
     // False regs:
@@ -293,9 +164,9 @@ module audio #(
     always @(*) begin
         p2 = 0;
         p2en = 0;
-        if (frame_counter[11:8]>=4) begin // >= 1000
+        if (frame_counter[11:8]>=4) begin
             p2en = 1;
-            casez(frame_counter[9:6]) // 
+            casez(frame_counter[9:6])
             4'd0:   p2 = note_map(NC, 0);
             4'd1:   p2 = note_map(NC, 0);
             4'd2:   p2 = note_map(NAs, -1);
@@ -316,8 +187,8 @@ module audio #(
             endcase
         end
         if (p2 != 0)
-            p2 = p2 + frame_counter[2]; // Vibrato.
-            // p2 = p2 + frame_counter[2:1]; // Vibrato.
+            p2 = p2 + {{B+SUB{1'b0}}, frame_counter[2]}; // Vibrato.
+
         if (frame_counter[11:8]<8) begin
             if (frame_counter[4]) begin
                 p2 >>= 1;
@@ -327,22 +198,10 @@ module audio #(
                 p2 >>= 1;
             end
         end else begin
-            if (frame_counter[3]) begin
+            if (frame_counter[2]) begin
                 p2 >>= 1;
             end
         end
-
-        // casez(frame_counter[7:5])
-        // 3'd0: p2 = note_map(NG, 0);
-        // 3'd1: p2 = note_map(NG, 0);
-        // 3'd2: p2 = note_map(NC, 0);
-        // 3'd3: p2 = note_map(NC, 0);
-        // 3'd4: p2 = note_map(NAs, 0);
-        // 3'd5: p2 = note_map(NAs, 0);
-        // 3'd6: p2 = note_map(NF, 0);
-        // 3'd7: p2 = note_map(NF, 0) + frame_counter[5:1];
-        // endcase
-        // p2 = p2 + frame_counter[2:1]; // Vibrato.
     end
 
     wire [B:0] phase1;
@@ -386,39 +245,6 @@ module audio #(
         end
     endfunction
 
-    function signed [B-1:0] simple_square;
-        input src;
-        begin
-            simple_square = {~src,{B-1{src}}};
-        end
-    endfunction
-
-    // function signed [B-1:0] noise_map;
-    //     input [B:0] phase;
-    //     begin
-    //         // noise_map[6] = phase[3];
-    //         // noise_map[5] = phase[1];
-    //         // noise_map[4] = phase[6];
-    //         // noise_map[3] = phase[0];
-    //         // noise_map[2] = phase[5];
-    //         // noise_map[1] = phase[2];
-    //         // noise_map[0] = phase[4];
-    //         noise_map[6] = phase[4];
-    //         noise_map[5] = phase[1];
-    //         noise_map[4] = phase[6];
-    //         noise_map[3] = phase[0];
-    //         noise_map[2] = phase[2];
-    //         noise_map[1] = phase[3];
-    //         noise_map[0] = phase[5];
-    //         noise_map = noise_map + (frame_counter[6:0] ^ {phase[7],1'b0,phase[7],1'b0,phase[7],2'b0});
-    //         noise_map = noise_map[3:0] << 2;
-    //         // noise_map = (noise_map + frame_counter[6:0] + phase) ^ {phase[7],1'b0,phase[7],1'b0,phase[7],2'b0};
-    //         // noise_map = (noise_map + frame_counter[6:0] + phase) ^ {phase[7],1'b0,phase[7],1'b0,phase[7],2'b0};
-    //     end
-    // endfunction
-    // wire signed [9:0] noisemix = ((noise_map(phase2) << 5) ^ phase2) + vline[9:2];
-    // wire signed [B-1:0] voice2 = noise_map(noisemix[9:2]);////noise_map(phase2); //tr_map(phase2)>>>2; //sq_map(phase2)>>>2; //0;//sq_map(phase2)>>2;
-
     // Attenuates a signed sample by a given attenuation factor (right-shift amount):
     function signed [B-1:0] decayed_sample;
         input signed [B-1:0] sample;
@@ -432,30 +258,21 @@ module audio #(
     endfunction
 
     // Exponential attenuation factor:
-    wire [2:0] decay = frame_counter[3:1]; //[3:1] applied to both samples gets some really interesting overtones/twinkles.
+    wire [2:0] decay = frame_counter[3:1]; // Sort of pan pipe effect at Q5.9 when decay is only fc[1:0].
     wire [2:0] cross_decay = {3{frame_counter[6]}} ^ frame_counter[5:3];
-    // Sort of pan pipe effect at Q5.9 when decay is only fc[1:0].
+    // wire [2:0] decay = frame_counter[3:1]; // Sort of pan pipe effect at Q5.9 when decay is only fc[1:0].
+    // wire [2:0] cross_decay = {3{frame_counter[6]}} ^ frame_counter[5:3];
 
     wire signed [B-1:0] voice1 = decayed_sample(tr_map(phase1), decay);
     wire signed [B-1:0] voice2 =
         (~p2en)                 ?   0 :
         frame_counter[11:8]<8   ?   (tr_map(phase2)>>>1) :
         frame_counter[11:8]<12  ?   
-                                    (sq_map(phase2)>>>cross_decay) + (tr_map(phase2)>>>~cross_decay) :
-                                    (sq_map(phase2)>>>cross_decay) + (tr_map(phase2)>>>((~cross_decay[2:1])));
-                                //    : (sq_map(phase2));//>>>cross_decay);
-                                    // (sq_map(phase2)>>>cross_decay) + (tr_map(phase2)>>>~cross_decay);
-                                    // (sq_map(phase2)>>>decay) + (tr_map(phase2)>>>~decay);
-        //(sq_map(phase2) + tr_map(phase2))>>>~decay; //2; //0;//sq_map(phase2)>>2;
-
-    // wire signed [B-1:0] bass_sq = ({B{phase2[B]}} ^ (1<<(B-1)));
-
+                                    (sq_map(phase2)>>>cross_decay) + (tr_map(phase2)>>>~cross_decay)
+                                  : (sq_map(phase2)>>>cross_decay) + (tr_map(phase2)>>>((~cross_decay[2:1])))
+                                    ;
     // Average mixing of the two samples:
     wire signed [B:0] mixer = voice1 + voice2;
-        // // (attenuated_sample(sq_sample>>>1, exp_atten)) +
-        // (bass_sq>>2) +
-        // 0
-        // ; 
     wire signed [B-1:0] sample = mixer[B:1];
 
     sigmadelta_dac #(.B(B)) dac(
