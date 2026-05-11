@@ -32,6 +32,8 @@ module tt_um_algofoogle_dottee(
 );
 
   localparam DOTBITS = 6; //NOTE: Increasing to 6 gives quadrant colours, like gems.
+  localparam AUDIO_BITS = 6;
+  localparam AUDIO_SUB = 7;
 
   // // Creates an attenuated sound during the logo that sounds like a drum/hat:
   // reg [3:0] pwm;
@@ -46,9 +48,11 @@ module tt_um_algofoogle_dottee(
 
   wire line_end = (h==799); //SMELL: Make hvsync_generator supply this.
 
-  audio #(.B(5), .SUB(9)) synth (
+  audio #(.B(AUDIO_BITS), .SUB(AUDIO_SUB)) synth (
     .clk(clk),
     .reset(reset),
+    // .ext_square(rgb_unblanked[0]),
+    // .vline(v),
     .frame_counter(frame_counter),
     .sample_clk(line_end),
     .dac_out(dac_out)
@@ -201,8 +205,8 @@ module tt_um_algofoogle_dottee(
   wire [5:0] rgb_gems;
 
   wire logo_gone   = frame_counter>=12'd1024;
-  wire logo_en     = frame_counter>=12'd384 && !logo_gone;    // Logo visible from 00:06.4 to 00:17.1
-  wire shatter_in  = frame_counter[9:5]==5'b01100;
+  wire logo_en     = frame_counter>=12'd512 && !logo_gone;    // Logo visible from 00:06.4 to 00:17.1
+  wire shatter_in  = frame_counter[9:5]==5'b10000; //5'b01110;
   wire shatter_out = frame_counter[9:5]==5'b11111;
 
   wire logo_revealed = frame_counter[11:5]>=7'b0001101;
