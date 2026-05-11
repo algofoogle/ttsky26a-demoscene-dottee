@@ -32,8 +32,8 @@ module tt_um_algofoogle_dottee(
 );
 
   localparam DOTBITS = 6; //NOTE: Increasing to 6 gives quadrant colours, like gems.
-  localparam AUDIO_BITS = 4;
-  localparam AUDIO_SUB = 9;
+  localparam AUDIO_BITS = 5;
+  localparam AUDIO_SUB = 8;
 
   wire dac_out; //NOTE: This is (probably) already registered, within the 'audio' module.
   wire speaker = dac_out;
@@ -305,12 +305,14 @@ module tt_um_algofoogle_dottee(
     (hlut<<2) + frame_counter[5:0]; //({6{frame_counter[6]}} ^ frame_counter[5:0]); //(1<<(DOTBITS-1));
 
   wire [DOTBITS-3:0] hlut;
-  // wire [DOTBITS-3:0] vlut;
+  wire [DOTBITS-3:0] vlut;
 
   // wire altgem = (gem_mode == 4) && (max_radius >= 32);
 
+  // wire [9:0] hslide = (&frame_counter[11:10]) ? (frame_counter[9:2] ^ {6{vlut[0]}}) : 0;
+
   gems #(.DOTBITS(DOTBITS)) gems1(
-    .h(hstagger ? h+(1<<(DOTBITS-1)) : h),
+    .h( (hstagger ? h+(1<<(DOTBITS-1)) : h)),// + hslide),
     .v(v+counter),
     .counter(logo_revealed ? ~(counter+256) : 0), // Start animating dots after the logo has been fully-revealed.
     // .fmode(15),
@@ -322,7 +324,7 @@ module tt_um_algofoogle_dottee(
     .inr(max_radius), //NOTE: Intentionally or not, radius behaves as the absolute of a signed value??
     .hit(gem_hit),
     .hlut(hlut),
-    // .vlut(vlut),
+    .vlut(vlut),
     .rgb(rgb_gems)
   );
 
