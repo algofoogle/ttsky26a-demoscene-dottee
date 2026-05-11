@@ -14,14 +14,11 @@
 // // Short initial delay, loop early:
 // `define DEBUG_TSTART  ( 2*60)
 // `define DEBUG_TSTOP   (20*60) 
+// `define DEBUG_SLOW    5
 
-// // // Watch the logo dissove & flash:
-// // `define DEBUG_TSTART  (16*60)
-// // `define DEBUG_TSTOP   (18*60) 
 // `define SPIN_LOGO
 // `define SIMPLE_LOGO_REVEAL
 
-// // `define DEBUG_SLOW    5
 
 module tt_um_algofoogle_dottee(
   input  wire [7:0] ui_in,    // Dedicated inputs
@@ -44,7 +41,7 @@ module tt_um_algofoogle_dottee(
   //   logo_en     ? (rgb_unblanked[0] | ( counter[6] & ~vsync )) & (pwm > counter[3:0]):
   //                 (rgb_unblanked[2] | ( counter[5] & ~vsync )) & (pwm > counter[3:0]) & (pwm[0]);// & pwm[1]);
 
-  wire dac_out;
+  wire dac_out; //NOTE: THis is (probably) already registered, within the 'audio' module.
   wire speaker = dac_out;
 
   wire line_end = (h==799); //SMELL: Make hvsync_generator supply this.
@@ -57,27 +54,19 @@ module tt_um_algofoogle_dottee(
     .dac_out(dac_out)
   );
 
-  // reg speaker;
+  // reg flava;
   // always @(*) begin
   //   case (ui_in[3:0])
-  //   4'b0000: speaker = rgb_unblanked[0]; //RGB_reg[5]; // B[0]
-  //   4'b0001: speaker = rgb_unblanked[1]; //RGB_reg[2]; // B[1]
-  //   4'b0010: speaker = rgb_unblanked[2]; //RGB_reg[4]; // G[0]
-  //   4'b0011: speaker = rgb_unblanked[3]; //RGB_reg[1]; // G[1] // Interesting wobble beneath dominant 60Hz.
-  //   4'b0100: speaker = rgb_unblanked[4]; //RGB_reg[3]; // R[0] // Lasery sound under annoying 60Hz.
-  //   4'b0101: speaker = rgb_unblanked[5]; //RGB_reg[0]; // R[1] // Dalek under 60Hz.
-  //   4'b0110: speaker = rgb_unblanked[0] & rgb_unblanked[3];
-  //   4'b0111: speaker = rgb_unblanked[0] | rgb_unblanked[3]; // Annoying 60Hz buzz.
-  //   4'b1000: speaker = rgb_unblanked[0] ^ rgb_unblanked[1];
-  //   4'b1001: speaker = rgb_unblanked[0] ^ rgb_unblanked[2];
-  //   4'b1010: speaker = rgb_unblanked[0] ^ rgb_unblanked[3];
-  //   4'b1011: speaker = rgb_unblanked[0] ^ rgb_unblanked[4];
-  //   4'b1100: speaker = v[4];
-  //   4'b1101: speaker = v[5];
-  //   4'b1110: speaker = v[6];
-  //   4'b1111: speaker = v[7];
+  //   4'b0000: flava = rgb_unblanked[0]; //RGB_reg[5]; // B[0] // Crunchy logo sound.
+  //   4'b0001: flava = rgb_unblanked[1]; //RGB_reg[2]; // B[1] // Sort of works with music in XOR mode.
+  //   4'b0010: flava = rgb_unblanked[2]; //RGB_reg[4]; // G[0] // With XOR, complements music nicely -- adds variation. As does the one below (mode 3).
+  //   4'b0011: flava = rgb_unblanked[3]; //RGB_reg[1]; // G[1] // Interesting wobble beneath dominant 60Hz.
+  //   4'b0100: flava = rgb_unblanked[4]; //RGB_reg[3]; // R[0] // Lasery sound under annoying 60Hz.
+  //   4'b0101: flava = rgb_unblanked[5]; //RGB_reg[0]; // R[1] // Dalek under 60Hz. Interesting in moderation.
   //   endcase
   // end
+
+  // wire speaker = ui_in[7] ? (flava & dac_out) : (flava ^ dac_out);
 
   // VGA signals
   wire hsync;
