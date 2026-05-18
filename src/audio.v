@@ -5,6 +5,8 @@
 
 `default_nettype none
 
+// `define OCTAVE_DOWN 1
+
 module audio #(
     parameter B = 5, // Internal bit depth of audio samples. 10 excellent. 8 good. 6 some harmonics. 5 workable. 4 just passable. 3 gritty.
     parameter SUB = 9, // Sub-resolution of the voice phase accumulator. 1+B+SUB is the total phase bit depth: Larger gives more tonal precision. 1+4+8 is minimum.
@@ -13,8 +15,11 @@ module audio #(
     input clk,
     input rst_n,
     input [11:0] frame_counter,
+    input [9:0] h,
+    input [9:0] v,
     input sample_clk,
-    output dac_out
+    output dac_out,
+    output [B-1:0] sample_out
 );
 
     // Tuning based on G1=59.94Hz (making it possible for us to tune based on VSYNC):
@@ -102,6 +107,9 @@ module audio #(
             NB:     note_map = PGs  <<  (oct+1);
             default:note_map = 0;
             endcase
+`ifdef OCTAVE_DOWN
+            note_map = note_map >> `OCTAVE_DOWN;
+`endif//OCTAVE_DOWN
         end
     endfunction
 
@@ -273,12 +281,31 @@ module audio #(
                                     ;
     // Average mixing of the two samples:
     wire signed [B:0] mixer = voice1 + voice2;
-    wire signed [B-1:0] sample = mixer[B:1];
+    // wire signed [B-1:0] sample = (h < frame_counter) ? (h[B-1:0]+v+frame_counter) : mixer[B:1];
+
+    wire [11:0] t = frame_counter;
+    wire [9:0] a = 0;//h<<5;
+    wire [9:0] b = v>>t[9:7];
+    wire [B-1:0] noise = ({b[7],a[3],b[1],a[0],b[2],a[5]} + (b<<t[1:0]) - (b[8:3]>>t[1:0])) ^ (a+t) ^ (b+t);  //(h ^ v) + {B{t[0]}};
+    wire nbit3 = &noise[5:4]; //(|noise) ^ (&noise);
+    wire nbit2 = &noise[3:2];
+    wire nbit1 = &noise[1:0];
+    wire nbitc = {{2{nbit3}}, {2{nbit2}}, {2{nbit1}}};
+    wire nbit = &noise;
+
+    wire [5:0] nn = noise + {noise,1'b0,noise,1'b0,noise,1'b0};
+
+    wire nn2 = nn >= 32;
+
+    wire signed [B-1:0] sample = (h<400) ? {6{nn2}} : 0;//mixer[B:1];    
+
+    assign sample_out = sample;
+
 
     sigmadelta_dac #(.B(B)) dac(
         .clk(clk),
         .rst_n(rst_n),
-        .sample_in(sample+(1<<(B-1))), // signed => unsigned.
+        .sample_in(sample),//+(1<<(B-1))), // signed => unsigned.
         .dac_out(dac_out)
     );
 

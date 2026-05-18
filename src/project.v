@@ -40,12 +40,17 @@ module tt_um_algofoogle_dottee(
 
   wire line_end;
 
+  wire [AUDIO_BITS-1:0] sample_out;
+
   audio #(.B(AUDIO_BITS), .SUB(AUDIO_SUB)) synth (
     .clk(clk),
     .rst_n(rst_n),
     .frame_counter(frame_counter),
+    .h(h),
+    .v(v),
     .sample_clk(line_end),
-    .dac_out(dac_out)
+    .dac_out(dac_out),
+    .sample_out(sample_out)
   );
 
   // VGA signals
@@ -338,19 +343,19 @@ module tt_um_algofoogle_dottee(
   wire debug_gem_mode_p = gem_mode[~h[4:3]]; // "Pixels" are 8-wide and there's 4 of them.
 `endif//DEBUG_GEM_MODE_UI
 
-  wire [5:0] rgb_unblanked = 
-`ifdef DEBUG_DAC
-    (h>=10'd544) ? {2'b00,{2{dac_out}}, 2'b00} :
-`endif
-`ifdef DEBUG_GEM_MODE_SHOW
-    (debug_gem_mode_en) ? {6{debug_gem_mode_p}} :
-`endif//DEBUG_GEM_MODE_SHOW
-`ifdef DEBUG_BAR
-    (debug_bar_en && (debug_limit || debug_progress)) ? {6{fuzz}} :
-`endif//DEBUG_BAR
-(
-    (logo_hit && logo_en) ? logo_color :
-                          rgb) | whiteout;
+  wire [5:0] rgb_unblanked = sample_out; //{6{dac_out}};
+// `ifdef DEBUG_DAC
+//     (h>=10'd544) ? {2'b00,{2{dac_out}}, 2'b00} :
+// `endif
+// `ifdef DEBUG_GEM_MODE_SHOW
+//     (debug_gem_mode_en) ? {6{debug_gem_mode_p}} :
+// `endif//DEBUG_GEM_MODE_SHOW
+// `ifdef DEBUG_BAR
+//     (debug_bar_en && (debug_limit || debug_progress)) ? {6{fuzz}} :
+// `endif//DEBUG_BAR
+// (
+//     (logo_hit && logo_en) ? logo_color :
+//                           rgb) | whiteout;
 
   assign {R,G,B} = (!video_active) ? 6'b00_00_00 : rgb_unblanked;
 
