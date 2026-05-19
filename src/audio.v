@@ -279,25 +279,44 @@ module audio #(
                                     (sq_map(phase2)>>>cross_decay) + (tr_map(phase2)>>>~cross_decay)
                                   : (sq_map(phase2)>>>cross_decay) + (tr_map(phase2)>>>((~cross_decay[2:1])))
                                     ;
-    // Average mixing of the two samples:
-    wire signed [B:0] mixer = voice1 + voice2;
     // wire signed [B-1:0] sample = (h < frame_counter) ? (h[B-1:0]+v+frame_counter) : mixer[B:1];
 
-    wire [11:0] t = frame_counter;
-    wire [9:0] a = 0;//h<<5;
-    wire [9:0] b = v>>t[9:7];
-    wire [B-1:0] noise = ({b[7],a[3],b[1],a[0],b[2],a[5]} + (b<<t[1:0]) - (b[8:3]>>t[1:0])) ^ (a+t) ^ (b+t);  //(h ^ v) + {B{t[0]}};
-    wire nbit3 = &noise[5:4]; //(|noise) ^ (&noise);
-    wire nbit2 = &noise[3:2];
-    wire nbit1 = &noise[1:0];
-    wire nbitc = {{2{nbit3}}, {2{nbit2}}, {2{nbit1}}};
-    wire nbit = &noise;
+    wire [B-1:0] t = frame_counter[B-1:0];
+    // wire [9:0] b =
+    //     (frame_counter[5:2]==0) ? (v>>(5+frame_counter[1:0])) :
+    //     (frame_counter[5:3]==4) ? (v<<0) : 0;
 
-    wire [5:0] nn = noise + {noise,1'b0,noise,1'b0,noise,1'b0};
+    reg [9:0] b;
+    reg [3:0] a; // Attenuation.
+    always @(*) begin
+        a = 0;
+        b = 0;
+        if (frame_counter[5:3]==3'b100) begin
+            // Hi-hat (longer tail):
+            b = v<<0;
+            a = frame_counter[2:0]+1; // Attenuation.
+        end else if (frame_counter[5:3]==3'b0000) begin
+            b = (v>>(5+frame_counter[2:1]));// + ((frame_counter[2:0]==0 && v<64) ? v : 0);
+            a = frame_counter[2:0]; // Attenuation.
+        end
+    end
+    
+    //v>>frame_counter[9:7];
+    // wire [9:0] b = v>>frame_counter[5:1];
+    wire [B-1:0] noise = ({b[7],1'b0,b[1],1'b0,b[2],1'b0} + (b<<t[1:0]) - (b[8:3]>>t[1:0])) ^ (b+t) ^ t;  //(h ^ v) + {B{t[0]}};
+
+    wire [5:0] nn = noise + {noise,1'b0};
 
     wire nn2 = nn >= 32;
 
-    wire signed [B-1:0] sample = (h<400) ? {6{nn2}} : 0;//mixer[B:1];    
+    wire [B-1:0] drums = ({6{nn2}}>>a);
+
+    wire signed [B+1:0] mixer = voice1 + voice2 + ((frame_counter[11:8]>1) ? $signed(drums) : voice1);// + drums + drums;
+
+    wire signed [B-1:0] sample = mixer[B+1:2];
+    // Average mixing of 3 samples:
+    
+    // (h<400) ? ({6{nn2}}>>a) : 0;//mixer[B:1];    
 
     assign sample_out = sample;
 
@@ -305,7 +324,7 @@ module audio #(
     sigmadelta_dac #(.B(B)) dac(
         .clk(clk),
         .rst_n(rst_n),
-        .sample_in(sample),//+(1<<(B-1))), // signed => unsigned.
+        .sample_in(sample+(1<<(B-1))), // signed => unsigned.
         .dac_out(dac_out)
     );
 
