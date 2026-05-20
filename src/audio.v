@@ -113,6 +113,8 @@ module audio #(
         end
     endfunction
 
+    // The whole demo is made up of 16 musical bars:
+    wire [3:0] musbar = frame_counter[11:8];
 
 
     // Phase increment (frequency factor) chosen for the notes we want:
@@ -129,7 +131,7 @@ module audio #(
         endcase
 
         // Then add 3 more beats for the next 2 bars:
-        if (frame_counter[11:8]>0) begin
+        if (musbar>0) begin
             casez(frame_counter[6:3])
             // 0..5
             4'd6:       pinc = note_map(NC,     1);
@@ -141,7 +143,7 @@ module audio #(
         end
 
         // Then add other flourishes after that:
-        if (frame_counter[11:8]>1) begin
+        if (musbar>1) begin
             casez(frame_counter[6:3])
             // 0
             4'd1:       pinc = note_map(NC,     2);
@@ -162,7 +164,7 @@ module audio #(
             endcase
         end
 
-        if (frame_counter[11:8]<12 || frame_counter[1])
+        if (musbar<12 || frame_counter[1])
             pinc = pinc << 1; // Bump up an extra octave in the early bars.
     end
 
@@ -172,7 +174,7 @@ module audio #(
     always @(*) begin
         p2 = 0;
         p2en = 0;
-        if (frame_counter[11:8]>=4) begin
+        if (musbar>=4) begin
             p2en = 1;
             casez(frame_counter[9:6])
             4'd0:   p2 = note_map(NC, 0);
@@ -197,11 +199,11 @@ module audio #(
         if (p2 != 0)
             p2 = p2 + {{B+SUB{1'b0}}, frame_counter[2]}; // Vibrato.
 
-        if (frame_counter[11:8]<8) begin
+        if (musbar<8) begin
             if (frame_counter[4]) begin
                 p2 >>= 1;
             end
-        end else if (frame_counter[11:8]<12) begin
+        end else if (musbar<12) begin
             if (frame_counter[6]) begin
                 p2 >>= 1;
             end
@@ -271,38 +273,49 @@ module audio #(
     // wire [2:0] decay = frame_counter[3:1]; // Sort of pan pipe effect at Q5.9 when decay is only fc[1:0].
     // wire [2:0] cross_decay = {3{frame_counter[6]}} ^ frame_counter[5:3];
 
-    wire signed [B-1:0] voice1 = decayed_sample(tr_map(phase1), decay);
+    wire signed [B-1:0] voice1 = (pinc==0) ? 0 : decayed_sample(tr_map(phase1), decay);
     wire signed [B-1:0] voice2 =
-        (~p2en)                 ?   0 :
-        frame_counter[11:8]<8   ?   (tr_map(phase2)>>>1) :
-        frame_counter[11:8]<12  ?   
-                                    (sq_map(phase2)>>>cross_decay) + (tr_map(phase2)>>>~cross_decay)
-                                  : (sq_map(phase2)>>>cross_decay) + (tr_map(phase2)>>>((~cross_decay[2:1])))
-                                    ;
+        (~p2en)     ?   0 :
+        musbar<8    ?   (tr_map(phase2)>>>1) :
+        musbar<12   ?   (sq_map(phase2)>>>cross_decay) + (tr_map(phase2)>>>~cross_decay) :
+                        (sq_map(phase2)>>>cross_decay) + (tr_map(phase2)>>>((~cross_decay[2:1])));
     // wire signed [B-1:0] sample = (h < frame_counter) ? (h[B-1:0]+v+frame_counter) : mixer[B:1];
 
     wire [B-1:0] t = frame_counter[B-1:0];
-    // wire [9:0] b =
-    //     (frame_counter[5:2]==0) ? (v>>(5+frame_counter[1:0])) :
-    //     (frame_counter[5:3]==4) ? (v<<0) : 0;
 
+    // 5432
+    // 0000: drum
+    // 0001: -
+    // 0010: -
+    // 0011: -
+    // 0100: hat
+    // 0101: -
+    // 0110: -
+    // 0111: -
+    // 1000: hat
+    // 1001: -
+    // 1010: -
+    // 1011: -
+    // 1100: hat
+    // 1101: -
+    // 1110: -
+    // 1111: -
     reg [9:0] b;
     reg [3:0] a; // Attenuation.
     always @(*) begin
         a = 0;
         b = 0;
-        if (frame_counter[5:3]==3'b100) begin
-            // Hi-hat (longer tail):
-            b = v<<0;
-            a = frame_counter[2:0]+1; // Attenuation.
-        end else if (frame_counter[5:3]==3'b0000) begin
-            b = (v>>(5+frame_counter[2:1]));// + ((frame_counter[2:0]==0 && v<64) ? v : 0);
+        if (frame_counter[5:2]==4'b0000) begin
+            // Drum:
+            b = (v>>(5+frame_counter[2:1]));
             a = frame_counter[2:0]; // Attenuation.
+        end else if (frame_counter[3:2]==2'b00) begin
+            // Hi-hat (longer tail):
+            b = v;
+            a = (frame_counter[4] && musbar<6) ? 4'b1111 : (frame_counter[2:0]+1); // Attenuation.
         end
     end
     
-    //v>>frame_counter[9:7];
-    // wire [9:0] b = v>>frame_counter[5:1];
     wire [B-1:0] noise = ({b[7],1'b0,b[1],1'b0,b[2],1'b0} + (b<<t[1:0]) - (b[8:3]>>t[1:0])) ^ (b+t) ^ t;  //(h ^ v) + {B{t[0]}};
 
     wire [5:0] nn = noise + {noise,1'b0};
@@ -311,7 +324,14 @@ module audio #(
 
     wire [B-1:0] drums = ({6{nn2}}>>a);
 
-    wire signed [B+1:0] mixer = voice1 + voice2 + ((frame_counter[11:8]>1) ? $signed(drums) : voice1);// + drums + drums;
+    wire drums_en = (musbar>=3);
+    wire v2_amp = (musbar<8); // voice2 is louder only for the 1st half of the music. Avoids clipping and sounds better in general.
+
+    wire signed [B+1:0] mixer = 
+        drums_en ?  ((voice1<<1) + (voice2<<v2_amp) + $signed({drums})) :
+                    ((voice1<<1) + (voice2<<1));
+                    
+    // voice1 + voice2 + (drums_en ? $signed({drums,1'b0}) : voice1) + voice2;
 
     wire signed [B-1:0] sample = mixer[B+1:2];
     // Average mixing of 3 samples:
