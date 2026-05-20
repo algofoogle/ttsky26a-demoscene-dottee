@@ -331,12 +331,7 @@ module audio #(
         drums_en ?  ((voice1<<1) + (voice2<<v2_amp) + $signed({drums})) :
                     ((voice1<<1) + (voice2<<1));
                     
-    // voice1 + voice2 + (drums_en ? $signed({drums,1'b0}) : voice1) + voice2;
-
     wire signed [B-1:0] sample = mixer[B+1:2];
-    // Average mixing of 3 samples:
-    
-    // (h<400) ? ({6{nn2}}>>a) : 0;//mixer[B:1];    
 
     assign sample_out = sample;
 

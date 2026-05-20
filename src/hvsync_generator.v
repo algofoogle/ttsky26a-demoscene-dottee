@@ -69,14 +69,14 @@ module hvsync_generator #(
 
   // HSYNC:
   always @(posedge clk) begin
-          if (hpos==H_SYNC_END || ~rst_n) hsync <= 0;
-    else  if (hpos==H_SYNC_START)         hsync <= 1;
+          if (hpos==H_SYNC_END || ~rst_n) hsync <= 1;
+    else  if (hpos==H_SYNC_START)         hsync <= 0;
   end
 
   // VSYNC:
   always @(posedge clk) begin
-          if (vpos==V_SYNC_END || ~rst_n) vsync <= 0;
-    else  if (vpos==V_SYNC_START)         vsync <= 1;
+          if (vpos==V_SYNC_END || ~rst_n) vsync <= 1;
+    else  if (vpos==V_SYNC_START)         vsync <= 0;
   end
 endmodule
 

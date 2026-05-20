@@ -19,6 +19,7 @@
 // `define SPIN_LOGO
 // `define SIMPLE_LOGO_REVEAL
 
+`define HSLIDE_ANIM
 
 module tt_um_algofoogle_dottee(
   input  wire [7:0] ui_in,    // Dedicated inputs
@@ -312,10 +313,16 @@ module tt_um_algofoogle_dottee(
 
   // wire altgem = (gem_mode == 4) && (max_radius >= 32);
 
-  // wire [9:0] hslide = (&frame_counter[11:10]) ? (frame_counter[9:2] ^ {6{vlut[0]}}) : 0;
+`ifdef HSLIDE_ANIM
+  wire [9:0] hslide = (&frame_counter[11:10]) ? (frame_counter[9:2] ^ {6{vlut[0]}}) : 0;
+`endif//HSLIDE_ANIM
 
   gems #(.DOTBITS(DOTBITS)) gems1(
-    .h( (hstagger ? h+(1<<(DOTBITS-1)) : h)),// + hslide),
+`ifdef HSLIDE_ANIM
+    .h( (hstagger ? h+(1<<(DOTBITS-1)) : h) + hslide),
+`else
+    .h( (hstagger ? h+(1<<(DOTBITS-1)) : h)),
+`endif//HSLIDE_ANIM
     .v(v+counter),
     .counter(logo_revealed ? ~(counter+256) : 0), // Start animating dots after the logo has been fully-revealed.
     // .fmode(15),
@@ -343,7 +350,7 @@ module tt_um_algofoogle_dottee(
   wire debug_gem_mode_p = gem_mode[~h[4:3]]; // "Pixels" are 8-wide and there's 4 of them.
 `endif//DEBUG_GEM_MODE_UI
 
-  wire [5:0] rgb_unblanked = //(h<320) ? sample_out : {6{dac_out}};
+  wire [5:0] rgb_unblanked =
 `ifdef DEBUG_DAC
     (h>=10'd544) ? {2'b00,{2{dac_out}}, 2'b00} :
 `endif

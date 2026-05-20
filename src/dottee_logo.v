@@ -1,5 +1,5 @@
 // If LOGO_ANIM is defined, 'counter' is used to animate the drawing of the logo.
-//`define LOGO_ANIM
+// `define LOGO_ANIM
 
 //`define FINAL_E_BAR
 
